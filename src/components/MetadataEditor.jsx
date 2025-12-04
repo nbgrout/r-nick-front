@@ -64,16 +64,22 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     }
   };
 
-  // placeholder field order if none yet
+  // Full list of fields from your example JSON schema
   const placeholderFields = [
-    "case_number",
-    "date",
-    "client_name",
-    "opposing_party",
-    "hearing_type",
-    "location",
-    "contact",
+    "client_first_name",
+    "client_last_name",
     "summary",
+    "author",
+    "individuals",
+    "date_authored",
+    "earliest_date",
+    "latest_date",
+    "num_visits",
+    "diagnoses",
+    "doc_type",
+    "audience",
+    "total_medical_cost",
+    "date_record_created"
   ];
 
   const entries =
@@ -81,11 +87,10 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
       ? Object.entries(metadata)
       : placeholderFields.map((k) => [k, ""]);
 
-  // split into two columns visually by wrapping entries in grid
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <h2 style={{ color: "var(--brand-purple)", margin: 0 }}>Metadata Editor</h2>
+        <h2 style={{ color: "var(--brand-purple)", margin: 0 }}>Brief</h2>
         <div style={{ fontSize: 13, color: "#666" }}>{saving ? "Saving..." : ""}</div>
       </div>
 
@@ -110,7 +115,11 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-        <button onClick={handleSave} disabled={saving || Object.keys(metadata).length === 0} style={{ background: "var(--brand-purple)", color: "#fff", padding: "8px 12px", borderRadius: 8, border: "none" }}>
+        <button
+          onClick={handleSave}
+          disabled={saving || Object.keys(metadata).length === 0}
+          style={{ background: "var(--brand-purple)", color: "#fff", padding: "8px 12px", borderRadius: 8, border: "none" }}
+        >
           {saving ? "Saving..." : "Save Changes"}
         </button>
       </div>

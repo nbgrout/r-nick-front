@@ -1,7 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&display=swap');
 
 :root{
-  --brand-purple: #341577;
+  /* changed brand purple to your requested #2d003a */
+  --brand-purple: #2d003a;
   --header-height: 72px;
   --bg: #f7f7fb;
   --card-bg: #ffffff;
@@ -17,8 +18,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   padding-top: var(--header-height); /* reserve space for fixed header */
-  display: flex;
-  justify-content: center;
+  /* align everything upper-left (instead of center) */
+  display: block;
 }
 
 /* fixed header */
@@ -40,125 +41,113 @@ body {
 
 /* header logo + title */
 .header-logo {
-  height: 110px; /* 3× bigger (48px × 3) */
-  width: 110px;  /* keep square */
+  height: 72px;
+  width: 72px;
   object-fit: contain;
   display: inline-block;
 }
 
 .header-title {
   font-family: 'Cinzel Decorative', serif;
-  font-size: 4rem; /* 3× bigger (1.5rem × 3) */
+  font-size: 2rem;
   color: var(--brand-purple);
-  margin: 0;
+  margin: 0 8px;
   line-height: 1;
   font-weight: 700;
 }
 
 .header-version {
   margin-left: 8px;
-  font-size: 2.55rem; /* 3× bigger (0.85rem × 3) */
+  font-size: 0.95rem;
   color: #6b6b6b;
 }
 
-/* page container */
+/* page container — left aligned, with safe padding from header */
 .container {
-  width: 100%;
-  max-width: 1000px;
+  width: calc(100% - 40px);
+  max-width: 1200px;
   padding: 20px;
   box-sizing: border-box;
+  margin-top: calc(var(--header-height) + 10px);
+  margin-left: 20px; /* keep things upper-left */
 }
 
-/* hero row: man left, portal right */
-.hero {
+/* layout: left column (portal + brief), right column (text) */
+.processor-grid {
   display: grid;
-  grid-template-columns: 1fr 320px; /* left flexible, right fixed portal */
-  gap: 20px;
+  grid-template-columns: 1fr 420px; /* left flexible, right fixed OCR/Text */
+  gap: 24px;
   align-items: start;
-  margin-bottom: 18px;
 }
 
-/* man card */
-.man-card {
+/* left column stack: portal (top) and brief (below) */
+.left-stack {
   display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: flex-start; /* keep upper-left alignment */
+}
+
+/* CLEAN MINIMAL HERO — portal+man wrapper */
+.hero-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start; /* align left */
+  align-items: flex-start;
+  padding: 6px 0;
+}
+
+/* Portal/Man container resizing helper */
+.portal-man-wrapper {
+  display: flex;
+  align-items: flex-end; /* bottom-align man with portal */
   gap: 12px;
-  align-items: center;
-  padding: 16px;
-  background: var(--card-bg);
-  border-radius: 12px;
-  border: 1px solid rgba(0,0,0,0.06);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
-}
-.man-image {
-  width: 120px;
-  height: 120px;
-  object-fit: contain;
-  flex: 0 0 120px;
+  background: transparent;
 }
 
-/* portal column */
-.portal-column {
-  display: flex;
-  justify-content: center;
-  align-items: start;
-}
-
-/* portal wrapper: circular mask & fixed size */
+/* portal wrapper remains circular and centered in its box */
 .portal-wrapper {
   width: 300px;
   height: 300px;
   border-radius: 50%;
   overflow: hidden;
-  background: #000; /* fallback */
+  background: #000;
   position: relative;
-  flex: 0 0 300px;
+  flex: 0 0 auto;
   border: 6px solid rgba(255,255,255,0.02);
   box-shadow: 0 10px 30px rgba(0,0,0,0.25) inset;
 }
 
-/* portal layers (absolute inside circle) */
-.portal-layer {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform-origin: 50% 50%;
-  will-change: transform, opacity;
-  pointer-events: none;
+/* man image styling — width manipulated in React but keep responsive defaults */
+.man-image {
+  display: block;
+  height: auto;
+  object-fit: contain;
+  z-index: 30;
 }
 
-/* size variants used inline but provide defaults */
-.portal-small { width: 120%; height: 120%; transform: translate(-50%, -50%); }
-.portal-med   { width: 160%; height: 160%; transform: translate(-50%, -50%); }
-.portal-large { width: 220%; height: 220%; transform: translate(-50%, -50%); }
-
-/* floating actor (man throws image occasionally) */
-.portal-actor {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform-origin: 50% 50%;
-  width: 56px;
-  height: 56px;
-  margin-left: -28px;
-  margin-top: -28px;
-  pointer-events: none;
+/* Brief (Metadata) card style */
+.brief-card {
+  width: 100%;
+  max-width: 760px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
 }
 
-/* Upload button center */
-.center-row { display:flex; justify-content:center; margin: 10px 0 18px; }
-
-/* Metadata grid - two columns of fields */
+/* metadata grid */
 .metadata-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px 20px;
-  background: var(--card-bg);
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,0,0,0.06);
+  background: transparent;
+  padding: 0;
+  border-radius: 8px;
 }
 
-/* single field row styling (label / input) */
+/* single field row styling */
 .field {
   display:flex;
   flex-direction: column;
@@ -179,17 +168,17 @@ body {
   font-size: 0.95rem;
   background: #fff;
 }
-
-/* textarea sizing for summary */
 .field textarea { min-height: 90px; resize: vertical; }
 
-/* OCR Preview */
+/* right column OCR/Text preview */
 .ocr-preview {
-  margin-top: 16px;
   padding: 14px;
   border-radius: 10px;
   background: #fff;
   border: 2px solid var(--brand-purple);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+  max-height: 70vh;
+  overflow: auto;
 }
 .ocr-title {
   font-weight: 700;
@@ -199,195 +188,17 @@ body {
 
 /* utility */
 .hidden { display:none; }
-/* Ensure container centers under header */
-.container {
-  margin-top: calc(var(--header-height) + 10px);
-}
 
-/* Better spacing for hero section */
-.hero {
-  margin-top: 10px;
-}
-
-/* Make portal clickable circle highlight */
-.portal-column:hover .portal-wrapper {
-  box-shadow: 0 0 20px rgba(52,21,119,0.45);
-}
-
-/* ---------- HERO LAYOUT & MACHINE BOX ---------- */
-
-.hero-portal-row {
-  display: grid;
-  grid-template-columns: 360px 1fr; /* left = machine area (fixed), right = man area flexible */
-  gap: 28px;
-  align-items: start;
-  margin-top: 10px;
-  width: 100%;
-  max-width: 1000px;
-}
-
-/* machine column left */
-.machine-column {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: flex-start; /* left align portal machine */
-}
-
-/* Mail sign above portal */
-.mail-sign {
-  width: 360px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: linear-gradient(180deg,#f8f9fb,#e8e9ee);
-  border: 2px solid rgba(0,0,0,0.06);
-  cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-}
-.mail-sign-text { display:flex; flex-direction:column; gap:2px; }
-.mail-sign-main { font-weight:700; color:var(--brand-purple); font-size:1.05rem; }
-.mail-sign-sub { font-size:0.85rem; color:#666; }
-.mail-sign-arrow { font-size:28px; color:#d33; margin-left:6px; }
-
-/* machine box that contains portal (cartoon steel) */
-.machine-box {
-  width: 360px;
-  height: 360px;
-  background: linear-gradient(180deg, #d7d9de, #c3c6cc); /* cartoon steel */
-  border-radius: 14px;
-  border: 4px solid #9aa0a7;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding: 18px;
-  cursor:pointer;
-  position: relative;
-}
-
-/* inner machine slot where portal circle sits */
-.portal-machine-inner {
-  width: 300px;
-  height: 300px;
-  border-radius: 10px;
-  background: #111; /* black background for portal circle */
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  position: relative;
-  box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);
-}
-
-/* portal-wrapper rules (override if present) */
-.portal-wrapper {
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  overflow: hidden;
-  position: relative;
-  background: #000;
-}
-
-/* ---------- MAN COLUMN & WINDOW ---------- */
-.man-column {
-  display:flex;
-  flex-direction: column;
-  gap: 18px;
-  align-items: center;
-}
-
-/* office window (black & white interior) */
-.office-window {
-  width: 240px;             /* match man width below */
-  height: 240px;            /* square window */
-  border-radius: 8px;
-  overflow: hidden;
-  border: 2px solid rgba(0,0,0,0.08);
-  background: #e9e9eb;
-  filter: grayscale(100%); /* interior B/W */
-  position: relative;
-}
-
-/* colored outdoor view inside window - positioned bottom-left/background */
-.window-view {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  /* keep interior items grayscale but we will add a colored layer that is NOT filtered */
-}
-
-/* sky (colored) — sits behind and is not grayscale */
-.window-view .sky {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 60%;
-  background: linear-gradient(#87ceeb, #bfe6ff); /* blue sky */
-  filter: none;
-  z-index: 1;
-}
-
-/* park (green) — lower-left */
-.window-view .park {
-  position: absolute;
-  bottom: 10%;
-  left: 6%;
-  width: 40%;
-  height: 30%;
-  background: linear-gradient(#2ecc71,#27ae60);
-  border-radius: 8px;
-  filter: none;
-  z-index: 2;
-  opacity: 0.95;
-}
-
-/* dome (gold) — lower-right hint of Boston State House */
-.window-view .dome {
-  position: absolute;
-  bottom: 6%;
-  right: 8%;
-  width: 28%;
-  height: 36%;
-  background: radial-gradient(circle at 50% 30%, #f6d365 10%, #d4a017 40%, #b8860b 100%);
-  border-radius: 50% 50% 40% 40%;
-  transform: translateY(8%);
-  filter: none;
-  z-index: 2;
-}
-
-/* Because office-window has grayscale filter, we need to override the colored children to be visible.
-   We do this by protecting the .window-view > .sky|.park|.dome with filter: none and using isolation.
-*/
-.office-window .window-view { isolation: isolate; }
-.office-window .window-view .sky,
-.office-window .window-view .park,
-.office-window .window-view .dome {
-  mix-blend-mode: normal;
-  filter: none;
-}
-
-/* man (2× size) */
-.man-card-inline {
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width: 240px;
-  height: auto;
-}
-.man-image-large {
-  width: 240px;   /* 2× of older 120px */
-  height: auto;
-  object-fit: contain;
-  display:block;
-}
-
-/* ---------- small responsive tweaks ---------- */
-@media (max-width: 900px) {
-  .hero-portal-row { grid-template-columns: 1fr; grid-auto-rows: auto; }
-  .machine-column, .man-column { align-items: center; }
-  .mail-sign, .machine-box { width: 100%; max-width: 420px; }
+/* responsiveness: stack on small screens */
+@media (max-width: 980px) {
+  .processor-grid {
+    grid-template-columns: 1fr;
+  }
+  .ocr-preview {
+    max-width: 100%;
+  }
+  .portal-wrapper {
+    width: 260px;
+    height: 260px;
+  }
 }

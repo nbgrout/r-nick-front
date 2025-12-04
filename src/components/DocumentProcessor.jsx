@@ -88,36 +88,42 @@ export default function DocumentProcessor() {
       </header>
 
       <div className="container">
+        {/* file input (hidden) */}
+        <input
+          id="fileInput"
+          type="file"
+          accept="application/pdf"
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+        />
 
-        {/* CLEAN MINIMAL HERO — ONLY PORTAL + MAN */}
-        <div
-          className="hero-row"
-          ref={dropRef}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          style={{ display: "flex", alignItems: "center", padding: "20px 0" }}
-        >
-          <PortalScene leftOffset={0} wrapperSize={300} manWidth={220} />
-
-          {/* Invisible click target for file picker */}
-          <input
-            id="fileInput"
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-            style={{ display: "none" }}
-          />
-        </div>
-
-        <div style={{ marginTop: 10, fontSize: 14 }}>
+        {/* Status line */}
+        <div style={{ marginBottom: 8, fontSize: 14 }}>
           {loading ? "Processing…" : status}
         </div>
 
-        <MetadataEditor metaPath={metaPath} backendUrl={BACKEND_URL} />
+        {/* Main grid: left = portal + brief, right = text */}
+        <div className="processor-grid" ref={dropRef} onDrop={handleDrop} onDragOver={handleDragOver}>
+          {/* LEFT STACK */}
+          <div className="left-stack">
+            {/* Portal + Man (top) */}
+            <div className="hero-row">
+              <PortalScene wrapperSize={300} manWidth={220} spinDuration={6} shiftManPercent={0.15} onChooseFile={() => document.getElementById("fileInput").click()}/>
+            </div>
 
-        <div className="ocr-preview" style={{ marginTop: 16 }}>
-          <div className="ocr-title">OCR Text Preview</div>
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{ocrText}</pre>
+            {/* Brief (MetadataEditor) */}
+            <div className="brief-card">
+              <MetadataEditor metaPath={metaPath} backendUrl={BACKEND_URL} />
+            </div>
+          </div>
+
+          {/* RIGHT: OCR / Text Preview */}
+          <div>
+            <div className="ocr-preview">
+              <div className="ocr-title">Text</div>
+              <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{ocrText || (file ? "No extracted text." : "Drop a PDF or use file picker to start.")}</pre>
+            </div>
+          </div>
         </div>
       </div>
     </>

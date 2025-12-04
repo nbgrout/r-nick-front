@@ -1,41 +1,36 @@
-// PortalMan.jsx
 import React, { useEffect } from "react";
 import { motion, useAnimation } from "framer-motion";
 import portalImg from "../assets/Portal.png";
 import manImg from "../assets/man.png";
 
-export default function PortalMan({
-  // optional props to tweak quickly
-  leftOffset = 40,       // px to shift whole block right (so its left aligns with your other column)
-  wrapperSize = 300,     // px (portal circle size)
-  manWidth = 220,        // px (width of man image)
-  spinDuration = 6       // seconds for one full rotation
+export default function PortalScene({
+  leftOffset = 0,
+  wrapperSize = 300,
+  manWidth = 220,
+  spinDuration = 6,
+  onChooseFile,
 }) {
   const controls = useAnimation();
 
   useEffect(() => {
-    // continuous rotation
     controls.start({
       rotate: 360,
       transition: {
-        rotate: {
-          repeat: Infinity,
-          ease: "linear",
-          duration: spinDuration,
-        },
+        repeat: Infinity,
+        ease: "linear",
+        duration: spinDuration,
       },
     });
   }, [controls, spinDuration]);
 
-  // exact pixel sizes (avoid percentage rounding/centering problems)
-  const bigSize = wrapperSize; // 300
-  const mediumSize = Math.round(wrapperSize / 13 * 1.1); // ~1/13 * 1.1
-  const tinySize = Math.max(1, Math.round(wrapperSize * 0.0846 * 0.0846)); // avoid zero
+  /** ORIGINAL SIZES RESTORED */
+  const bigSize = wrapperSize;
+  const mediumSize = Math.round(wrapperSize / 1.3);
+  const tinySize = Math.round(wrapperSize * 0.15);
 
-  // helper to compute top/left so each image is centered within wrapper
   const centerPos = (size) => {
     const offset = Math.round((wrapperSize - size) / 2);
-    return { top: `${offset}px`, left: `${offset}px` };
+    return { top: offset, left: offset };
   };
 
   return (
@@ -51,80 +46,80 @@ export default function PortalMan({
         paddingBottom: "10px",
       }}
     >
-      {/* Portal wrapper (fixed pixel size) */}
+      {/* CLICKABLE SPINNING PORTAL */}
       <div
+        onClick={onChooseFile}
         style={{
           position: "relative",
-          width: `${wrapperSize}px`,
-          height: `${wrapperSize}px`,
-          flex: "0 0 auto",
+          width: wrapperSize,
+          height: wrapperSize,
+          flexShrink: 0,
+          cursor: "pointer",
         }}
-        aria-hidden
       >
-        {/* smallest first (drawn underneath) */}
+        {/* TINY */}
         <motion.img
           src={portalImg}
-          alt="portal-tiny"
           animate={controls}
+          alt="tiny portal"
           style={{
             position: "absolute",
-            width: `${tinySize}px`,
-            height: `${tinySize}px`,
-            objectFit: "contain",
+            width: tinySize,
+            height: tinySize,
             ...centerPos(tinySize),
             transformOrigin: "50% 50%",
-            zIndex: 5,
+            objectFit: "contain",
             pointerEvents: "none",
+            zIndex: 5,
           }}
         />
 
-        {/* medium */}
+        {/* MEDIUM */}
         <motion.img
           src={portalImg}
-          alt="portal-medium"
           animate={controls}
+          alt="medium portal"
           style={{
             position: "absolute",
-            width: `${mediumSize}px`,
-            height: `${mediumSize}px`,
-            objectFit: "contain",
+            width: mediumSize,
+            height: mediumSize,
             ...centerPos(mediumSize),
             transformOrigin: "50% 50%",
-            zIndex: 10,
+            objectFit: "contain",
             pointerEvents: "none",
+            zIndex: 10,
           }}
         />
 
-        {/* large (drawn last so it visually sits on top) */}
+        {/* LARGE */}
         <motion.img
           src={portalImg}
-          alt="portal-large"
           animate={controls}
+          alt="large portal"
           style={{
             position: "absolute",
-            width: `${bigSize}px`,
-            height: `${bigSize}px`,
-            objectFit: "contain",
+            width: bigSize,
+            height: bigSize,
             ...centerPos(bigSize),
             transformOrigin: "50% 50%",
-            zIndex: 20,
+            objectFit: "contain",
             pointerEvents: "none",
+            zIndex: 20,
           }}
         />
       </div>
 
-      {/* Man on the right, no bending */}
+      {/* MAN — NOT CLICKABLE */}
       <img
         src={manImg}
         alt="man"
         style={{
-          width: `${manWidth}px`,
+          width: manWidth,
           height: "auto",
+          marginLeft: manWidth * 0.15,
           objectFit: "contain",
-          display: "block",
-          // small negative margin if you want him "almost touching" the portal:
-          marginLeft: "-18px",
           zIndex: 30,
+          pointerEvents: "none",
         }}
       />
     </div>
