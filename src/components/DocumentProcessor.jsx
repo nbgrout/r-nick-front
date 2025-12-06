@@ -3,7 +3,7 @@ import React, { useState, useRef } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 
-import logoSrc from "../assets/logo.png";
+import logoSrc from "../assets/Logo.png";
 
 export default function DocumentProcessor() {
   const [file, setFile] = useState(null);
