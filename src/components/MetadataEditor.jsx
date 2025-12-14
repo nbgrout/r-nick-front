@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from "react";
 
-/**
- * MetadataEditor (two-column stacked grid)
- * props: metaPath (url to load), backendUrl (save endpoint)
- *
- * Renders placeholders until metadata available; same save API as before.
- */
 export default function MetadataEditor({ metaPath, backendUrl }) {
   const [metadata, setMetadata] = useState({});
   const [loading, setLoading] = useState(false);
@@ -64,7 +58,6 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     }
   };
 
-  // Full list of fields from your example JSON schema
   const placeholderFields = [
     "client_first_name",
     "client_last_name",
@@ -79,7 +72,7 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     "doc_type",
     "audience",
     "total_medical_cost",
-    "date_record_created"
+    "date_record_created",
   ];
 
   const entries =
@@ -89,9 +82,18 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
 
   return (
     <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 10,
+        }}
+      >
         <h2 style={{ color: "var(--brand-purple)", margin: 0 }}>Brief</h2>
-        <div style={{ fontSize: 13, color: "#666" }}>{saving ? "Saving..." : ""}</div>
+        <div style={{ fontSize: 13, color: "#666" }}>
+          {saving ? "Saving..." : ""}
+        </div>
       </div>
 
       {error && <div style={{ color: "crimson", marginBottom: 8 }}>{error}</div>}
@@ -105,9 +107,16 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
             <div className="field" key={key}>
               <label>{key.replaceAll("_", " ")}</label>
               {isSummary ? (
-                <textarea value={v || ""} onChange={(e) => handleChange(key, e.target.value)} />
+                <textarea
+                  value={v || ""}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                />
               ) : (
-                <input type="text" value={v || ""} onChange={(e) => handleChange(key, e.target.value)} />
+                <input
+                  type="text"
+                  value={v || ""}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                />
               )}
             </div>
           );
@@ -118,7 +127,13 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
         <button
           onClick={handleSave}
           disabled={saving || Object.keys(metadata).length === 0}
-          style={{ background: "var(--brand-purple)", color: "#fff", padding: "8px 12px", borderRadius: 8, border: "none" }}
+          style={{
+            background: "var(--brand-purple)",
+            color: "#fff",
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: "none",
+          }}
         >
           {saving ? "Saving..." : "Save Changes"}
         </button>
