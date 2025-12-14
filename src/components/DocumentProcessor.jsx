@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import logoSrc from "../assets/Logo.png";
@@ -11,7 +11,13 @@ export default function DocumentProcessor() {
   const [status, setStatus] = useState("");
   const dropRef = useRef(null);
 
+  // Use environment variable from Cloudflare Pages
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
+
+  // Verify backend URL on mount
+  useEffect(() => {
+    console.log("Backend URL:", BACKEND_URL);
+  }, []);
 
   const handleFileChange = (e) => {
     const f = e.target.files?.[0];
@@ -69,7 +75,7 @@ export default function DocumentProcessor() {
       setStatus("Done");
     } catch (err) {
       console.error(err);
-      alert("Error: " + err);
+      alert("Error: " + err.message);
       setStatus("Error");
     } finally {
       setLoading(false);
@@ -85,6 +91,7 @@ export default function DocumentProcessor() {
       </header>
 
       <div className="container">
+        {/* Hidden file input */}
         <input
           id="fileInput"
           type="file"
@@ -93,16 +100,19 @@ export default function DocumentProcessor() {
           style={{ display: "none" }}
         />
 
+        {/* Status */}
         <div style={{ marginBottom: 8, fontSize: 14 }}>
           {loading ? "Processing…" : status}
         </div>
 
+        {/* Main processor grid */}
         <div
           className="processor-grid"
           ref={dropRef}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
+          {/* Left stack: Portal + Metadata */}
           <div className="left-stack">
             <div className="hero-row">
               <PortalScene
@@ -110,7 +120,9 @@ export default function DocumentProcessor() {
                 manWidth={220}
                 spinDuration={6}
                 shiftManPercent={0.15}
-                onChooseFile={() => document.getElementById("fileInput").click()}
+                onChooseFile={() =>
+                  document.getElementById("fileInput").click()
+                }
               />
             </div>
 
@@ -119,6 +131,7 @@ export default function DocumentProcessor() {
             </div>
           </div>
 
+          {/* Right: OCR preview */}
           <div>
             <div className="ocr-preview">
               <div className="ocr-title">Text</div>
