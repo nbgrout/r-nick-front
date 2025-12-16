@@ -1,3 +1,4 @@
+//MetadataEditor.jsx
 import React, { useState, useEffect } from "react";
 
 export default function MetadataEditor({ metaPath, backendUrl }) {
@@ -58,23 +59,23 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     }
   };
 
-  const placeholderFields = [
-    "client_first_name",
-    "client_last_name",
-    "summary",
-    "author",
-    "individuals",
-    "date_authored",
-    "earliest_date",
-    "latest_date",
-    "num_visits",
-    "diagnoses",
-    "doc_type",
-    "audience",
-    "total_medical_cost",
-    "date_record_created",
-  ];
-
+ const placeholderFields = [
+  "client_name",
+  "date_processed",
+  "date_written",
+  "people_and_contacts",
+  "document_type",
+  "author",
+  "audience",
+  "activity_date_range",
+  "one_sentence_description",
+  "critical_facts",
+];
+const isTextarea =
+  key === "one_sentence_description" ||
+  key === "critical_facts" ||
+  key === "people_and_contacts";
+  
   const entries =
     Object.keys(metadata).length > 0
       ? Object.entries(metadata)
