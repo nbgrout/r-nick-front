@@ -1,65 +1,7 @@
-//MetadataEditor.jsx
-import React, { useState, useEffect } from "react";
+// MetadataEditor.jsx
+import React, { useState, useEffect, useMemo } from "react";
 
-export default function MetadataEditor({ metaPath, backendUrl }) {
-  const [metadata, setMetadata] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!metaPath) {
-      setMetadata({});
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError("");
-    fetch(metaPath)
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to fetch metadata");
-        return r.json();
-      })
-      .then((data) => {
-        setMetadata(data || {});
-        setLoading(false);
-      })
-      .catch((e) => {
-        setError("Failed to load metadata: " + e.message);
-        setLoading(false);
-      });
-  }, [metaPath]);
-
-  const handleChange = (key, value) => {
-    setMetadata((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const deriveFilename = () => {
-    const parts = metaPath?.split("/") || [];
-    const f = parts[parts.length - 1] || "";
-    return f.replace("_meta.json", "");
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const payload = { filename: deriveFilename(), ...metadata };
-      const res = await fetch(`${backendUrl}/save_meta`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      alert("Metadata saved!");
-    } catch (e) {
-      setError("Save failed: " + e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
- const placeholderFields = [
+const FIELD_ORDER = [
   "client_name",
   "date_processed",
   "date_written",
@@ -71,16 +13,125 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
   "one_sentence_description",
   "critical_facts",
 ];
-const isTextarea =
-  key === "one_sentence_description" ||
-  key === "critical_facts" ||
-  key === "people_and_contacts";
-  
-  const entries =
-    Object.keys(metadata).length > 0
-      ? Object.entries(metadata)
-      : placeholderFields.map((k) => [k, ""]);
 
+const TEXTAREA_FIELDS = new Set([
+  "people_and_contacts",
+  "one_sentence_description",
+  "critical_facts",
+]);
+
+export default function MetadataEditor({ metaPath, backendUrl }) {
+  const [metadata, setMetadata] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // -----------------------------
+  // Load metadata
+  // -----------------------------
+  useEffect(() => {
+    if (!metaPath) {
+      setMetadata({});
+      setLoading(false);
+      setError("");
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+
+    fetch(metaPath)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to fetch metadata");
+        return r.json();
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setMetadata(data || {});
+          setLoading(false);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError("Failed to load metadata: " + e.message);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [metaPath]);
+
+  // -----------------------------
+  // Derived entries (stable)
+  // -----------------------------
+  const entries = useMemo(() => {
+    const source =
+      metadata && Object.keys(metadata).length > 0
+        ? metadata
+        : Object.fromEntries(FIELD_ORDER.map((k) => [k, ""]));
+
+    return FIELD_ORDER.map((field) => [
+      field,
+      source[field] ?? "",
+    ]);
+  }, [metadata]);
+
+  // -----------------------------
+  // Handlers
+  // -----------------------------
+  const handleChange = (field, value) => {
+    setMetadata((prev) => ({
+      ...(prev || {}),
+      [field]: value,
+    }));
+  };
+
+  const deriveFilename = () => {
+    if (!metaPath) return "";
+    const parts = metaPath.split("/");
+    const file = parts[parts.length - 1] || "";
+    return file.replace("_meta.json", "");
+  };
+
+  const handleSave = async () => {
+    if (!backendUrl) {
+      setError("Backend URL not configured");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const payload = {
+        filename: deriveFilename(),
+        ...metadata,
+      };
+
+      const res = await fetch(`${backendUrl}/save_meta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      alert("Metadata saved!");
+    } catch (e) {
+      setError("Save failed: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // -----------------------------
+  // Render
+  // -----------------------------
   return (
     <div style={{ marginTop: 12 }}>
       <div
@@ -91,32 +142,48 @@ const isTextarea =
           marginBottom: 10,
         }}
       >
-        <h2 style={{ color: "var(--brand-purple)", margin: 0 }}>Brief</h2>
+        <h2 style={{ color: "var(--brand-purple)", margin: 0 }}>
+          Brief
+        </h2>
         <div style={{ fontSize: 13, color: "#666" }}>
-          {saving ? "Saving..." : ""}
+          {saving ? "Saving…" : ""}
         </div>
       </div>
 
-      {error && <div style={{ color: "crimson", marginBottom: 8 }}>{error}</div>}
-      {loading && <div style={{ color: "#666", marginBottom: 8 }}>Loading metadata…</div>}
+      {error && (
+        <div style={{ color: "crimson", marginBottom: 8 }}>
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ color: "#666", marginBottom: 8 }}>
+          Loading metadata…
+        </div>
+      )}
 
       <div className="metadata-grid">
-        {entries.map(([k, v]) => {
-          const key = k;
-          const isSummary = key.toLowerCase() === "summary";
+        {entries.map(([field, value]) => {
+          const isTextarea = TEXTAREA_FIELDS.has(field);
+
           return (
-            <div className="field" key={key}>
-              <label>{key.replaceAll("_", " ")}</label>
-              {isSummary ? (
+            <div className="field" key={field}>
+              <label>{field.replaceAll("_", " ")}</label>
+
+              {isTextarea ? (
                 <textarea
-                  value={v || ""}
-                  onChange={(e) => handleChange(key, e.target.value)}
+                  value={value}
+                  onChange={(e) =>
+                    handleChange(field, e.target.value)
+                  }
                 />
               ) : (
                 <input
                   type="text"
-                  value={v || ""}
-                  onChange={(e) => handleChange(key, e.target.value)}
+                  value={value}
+                  onChange={(e) =>
+                    handleChange(field, e.target.value)
+                  }
                 />
               )}
             </div>
@@ -124,10 +191,18 @@ const isTextarea =
         })}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: 12,
+        }}
+      >
         <button
           onClick={handleSave}
-          disabled={saving || Object.keys(metadata).length === 0}
+          disabled={
+            saving || Object.keys(metadata || {}).length === 0
+          }
           style={{
             background: "var(--brand-purple)",
             color: "#fff",
@@ -136,7 +211,7 @@ const isTextarea =
             border: "none",
           }}
         >
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? "Saving…" : "Save Changes"}
         </button>
       </div>
     </div>
