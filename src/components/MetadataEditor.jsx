@@ -1,17 +1,18 @@
+// MetadataEditor.jsx
 import React, { useState, useEffect } from "react";
 
 export default function MetadataEditor({ metaPath, backendUrl }) {
   const [metadata, setMetadata] = useState({});
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const [sortField, setSortField] = useState(null);
+  const [sortAsc, setSortAsc] = useState(true);
 
+  // Load metadata
   useEffect(() => {
-    if (!metaPath) {
-      setMetadata({});
-      setLoading(false);
-      return;
-    }
+    if (!metaPath) return;
+
     setLoading(true);
     setError("");
     fetch(metaPath)
@@ -29,115 +30,112 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
       });
   }, [metaPath]);
 
-  const handleChange = (key, value) => {
-    setMetadata((prev) => ({ ...prev, [key]: value }));
-  };
+  // Sort and filter entries
+  const entries = Object.entries(metadata)
+    .filter(([k, v]) =>
+      k.toLowerCase().includes(filterText.toLowerCase()) ||
+      (v && v.toString().toLowerCase().includes(filterText.toLowerCase()))
+    )
+    .sort(([aKey, aVal], [bKey, bVal]) => {
+      if (!sortField) return 0;
+      if (aKey !== sortField) return 0;
+      const compA = (aVal || "").toString();
+      const compB = (bVal || "").toString();
+      if (compA < compB) return sortAsc ? -1 : 1;
+      if (compA > compB) return sortAsc ? 1 : -1;
+      return 0;
+    });
 
-  const deriveFilename = () => {
-    const parts = metaPath?.split("/") || [];
-    const f = parts[parts.length - 1] || "";
-    return f.replace("_meta.json", "");
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const payload = { filename: deriveFilename(), ...metadata };
-      const res = await fetch(`${backendUrl}/save_meta`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      alert("Metadata saved!");
-    } catch (e) {
-      setError("Save failed: " + e.message);
-    } finally {
-      setSaving(false);
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(true);
     }
   };
 
-  const placeholderFields = [
-    "client_first_name",
-    "client_last_name",
-    "summary",
-    "author",
-    "individuals",
-    "date_authored",
-    "earliest_date",
-    "latest_date",
-    "num_visits",
-    "diagnoses",
-    "doc_type",
-    "audience",
-    "total_medical_cost",
-    "date_record_created",
-  ];
+  const downloadItem = (key, value) => {
+    const blob = new Blob([JSON.stringify({ [key]: value }, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${key}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-  const entries =
-    Object.keys(metadata).length > 0
-      ? Object.entries(metadata)
-      : placeholderFields.map((k) => [k, ""]);
+  if (loading) return <p>Loading metadata...</p>;
+  if (error) return <p style={{ color: "crimson" }}>{error}</p>;
+  if (!metadata || Object.keys(metadata).length === 0)
+    return <p>No metadata available.</p>;
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 10,
-        }}
-      >
-        <h2 style={{ color: "var(--brand-purple)", margin: 0 }}>Brief</h2>
-        <div style={{ fontSize: 13, color: "#666" }}>
-          {saving ? "Saving..." : ""}
-        </div>
-      </div>
+    <div>
+      <h2 style={{ color: "var(--brand-purple)" }}>Metadata Table</h2>
 
-      {error && <div style={{ color: "crimson", marginBottom: 8 }}>{error}</div>}
-      {loading && <div style={{ color: "#666", marginBottom: 8 }}>Loading metadata…</div>}
+      <input
+        type="text"
+        placeholder="Filter..."
+        value={filterText}
+        onChange={(e) => setFilterText(e.target.value)}
+        style={{ marginBottom: 10, padding: 4, width: "100%" }}
+      />
 
-      <div className="metadata-grid">
-        {entries.map(([k, v]) => {
-          const key = k;
-          const isSummary = key.toLowerCase() === "summary";
-          return (
-            <div className="field" key={key}>
-              <label>{key.replaceAll("_", " ")}</label>
-              {isSummary ? (
-                <textarea
-                  value={v || ""}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={v || ""}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-        <button
-          onClick={handleSave}
-          disabled={saving || Object.keys(metadata).length === 0}
-          style={{
-            background: "var(--brand-purple)",
-            color: "#fff",
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "none",
-          }}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th
+              style={{ cursor: "pointer", borderBottom: "1px solid #ccc" }}
+              onClick={() => toggleSort("key")}
+            >
+              Field {sortField === "key" ? (sortAsc ? "▲" : "▼") : ""}
+            </th>
+            <th
+              style={{ cursor: "pointer", borderBottom: "1px solid #ccc" }}
+              onClick={() => toggleSort("value")}
+            >
+              Value {sortField === "value" ? (sortAsc ? "▲" : "▼") : ""}
+            </th>
+            <th style={{ borderBottom: "1px solid #ccc" }}>Download</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(([key, value]) => (
+            <tr key={key}>
+              <td
+                style={{
+                  padding: 6,
+                  borderBottom: "1px solid #eee",
+                  fontWeight: "bold",
+                }}
+              >
+                {key}
+              </td>
+              <td style={{ padding: 6, borderBottom: "1px solid #eee" }}>
+                {value?.toString()}
+              </td>
+              <td style={{ padding: 6, borderBottom: "1px solid #eee" }}>
+                <button
+                  onClick={() => downloadItem(key, value)}
+                  style={{
+                    background: "var(--brand-purple)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Download
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
