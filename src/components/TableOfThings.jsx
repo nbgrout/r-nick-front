@@ -1,3 +1,5 @@
+console.log("TableOfThings rendered");
+
 import React, { useEffect, useState, useMemo } from "react";
 
 export default function TableOfThings({ backendUrl }) {
@@ -86,93 +88,11 @@ export default function TableOfThings({ backendUrl }) {
 
   const metaKeys = docs[0] ? Object.keys(docs[0].meta) : [];
 
+
+
   return (
-    <div className="brief-card" style={{ overflowX: "auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <h3 style={{ margin: 0, color: "var(--brand-purple)" }}>
-          Documents
-        </h3>
-        <button onClick={download}>Download Selected</button>
-      </div>
-
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th />
-            <th onClick={() => toggleSort("pdf")} style={{ cursor: "pointer" }}>
-              PDF {sort.key === "pdf" ? (sort.dir === "asc" ? "▲" : "▼") : ""}
-            </th>
-            {metaKeys.map(k => (
-              <th
-                key={k}
-                onClick={() => toggleSort(k)}
-                style={{ cursor: "pointer" }}
-              >
-                {k}
-                {sort.key === k ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
-              </th>
-            ))}
-          </tr>
-
-          {/* FILTER ROW */}
-          <tr>
-            <th />
-            <th>
-              <input
-                placeholder="filter"
-                value={filters.pdf || ""}
-                onChange={e =>
-                  setFilters(f => ({ ...f, pdf: e.target.value }))
-                }
-              />
-            </th>
-            {metaKeys.map(k => (
-              <th key={k}>
-                <input
-                  placeholder="filter"
-                  value={filters[k] || ""}
-                  onChange={e =>
-                    setFilters(f => ({ ...f, [k]: e.target.value }))
-                  }
-                />
-              </th>
-            ))}
-          </tr>
-        </thead>
-
-        <tbody>
-          {pageDocs.map(d => (
-            <tr key={d.base}>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={!!selected[d.base]}
-                  onChange={() => toggle(d.base)}
-                />
-              </td>
-              <td>{d.pdf}</td>
-              {metaKeys.map(k => (
-                <td key={k}>{String(d.meta?.[k] ?? "")}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-        <button disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-          Prev
-        </button>
-        <button
-          disabled={(page + 1) * PAGE_SIZE >= filteredAndSorted.length}
-          onClick={() => setPage(p => p + 1)}
-        >
-          Next
-        </button>
-        <span style={{ fontSize: 12, color: "#666" }}>
-          Showing {filteredAndSorted.length} results
-        </span>
-      </div>
-    </div>
-  );
+  <div style={{ background: "yellow", padding: 20 }}>
+    TABLE OF THINGS IS HERE
+  </div>
+);
 }

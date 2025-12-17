@@ -127,7 +127,7 @@ export default function DocumentProcessor() {
                 }
               />
             </div>
-
+            <TableOfThings backendUrl={BACKEND_URL} />
             <div className="brief-card">
               <MetadataEditor metaPath={metaPath} backendUrl={BACKEND_URL} />
             </div>
