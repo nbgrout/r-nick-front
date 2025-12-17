@@ -211,3 +211,25 @@ body {
     align-items: flex-start;
   }
 }
+
+table th,
+table td {
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  padding: 6px 8px;
+  vertical-align: top;
+  text-align: left;
+  white-space: nowrap;
+}
+
+table th {
+  background: rgba(45, 0, 58, 0.04);
+  font-weight: 700;
+  color: var(--brand-purple);
+}
+
+table input {
+  width: 100%;
+  font-size: 12px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+}

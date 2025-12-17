@@ -11,7 +11,10 @@ export default function TableOfThings({ backendUrl }) {
   const [filters, setFilters] = useState({});
 
   const PAGE_SIZE = 20;
-
+  useEffect(() => {
+    setPage(0);
+  }, [filters, sort]);
+  
   useEffect(() => {
     fetch(`${backendUrl}/list-documents/`)
       .then(r => r.json())
@@ -90,9 +93,27 @@ export default function TableOfThings({ backendUrl }) {
 
 
 
-  return (
-  <div style={{ background: "yellow", padding: 20 }}>
-    TABLE OF THINGS IS HERE
+return (
+  <div className="brief-card">
+    <div
+      style={{
+        width: "100%",
+        overflowX: "auto",
+        border: "1px solid rgba(0,0,0,0.08)",
+        borderRadius: 8,
+      }}
+    >
+      <table
+        style={{
+          width: "100%",
+          minWidth: 900,
+          borderCollapse: "collapse",
+          fontSize: 13,
+        }}
+      >
+        {/** table head + body stay the same **/}
+      </table>
+    </div>
   </div>
 );
 }
