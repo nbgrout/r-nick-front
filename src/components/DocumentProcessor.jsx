@@ -1,7 +1,9 @@
+//DocumentProcessor.jsx
 import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import logoSrc from "../assets/Logo.png";
+import TableOfThings from "./TableOfThings";
 
 export default function DocumentProcessor() {
   const [file, setFile] = useState(null);

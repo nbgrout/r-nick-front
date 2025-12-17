@@ -1,3 +1,4 @@
+
 @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&display=swap');
 
 :root{
@@ -200,5 +201,13 @@ body {
   .portal-wrapper {
     width: 260px;
     height: 260px;
+  }
+}
+
+/* table placement */
+@media (min-width: 981px) {
+  .left-stack {
+    flex-direction: row;
+    align-items: flex-start;
   }
 }
