@@ -6,129 +6,113 @@ import TableOfThings from "./TableOfThings";
 import logoSrc from "../assets/Logo.png";
 
 export default function DocumentProcessor() {
-  const [status, setStatus] = useState("");
+  const [folderPath, setFolderPath] = useState("");
+  const [ocrText, setOcrText] = useState("");
+  const [metaPath, setMetaPath] = useState(null);
   const [loading, setLoading] = useState(false);
-  const folderInputRef = useRef(null);
 
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
+  const dropRef = useRef(null);
 
   useEffect(() => {
-    console.log("Backend URL:", BACKEND_URL);
-  }, [BACKEND_URL]);
+    fetch(`${BACKEND_URL}/current-folder/`)
+      .then(res => res.json())
+      .then(data => setFolderPath(data.folder))
+      .catch(console.error);
+  }, []);
 
-  /**
-   * User selects a folder.
-   * Browser gives us a list of files with RELATIVE paths.
-   * We register those paths with the backend ledger.
-   */
-  const handleFolderSelect = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
+  const updateFolder = () => {
+    fetch(`${BACKEND_URL}/set-folder/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_path: folderPath })
+    }).then(res => res.json()).then(console.log);
+  };
 
+  const handleFile = async (file) => {
     setLoading(true);
-    setStatus(`Registering ${files.length} documents…`);
-
     try {
-      for (const file of files) {
-        // Only register documents you care about
-        if (!file.name.match(/\.(pdf|docx|txt)$/i)) continue;
+      const formData = new FormData();
+      formData.append("file", file);
 
-        // This is the KEY VALUE you store
-        // Example: "ClientA/Medical/ER_Visit.pdf"
-        const relativePath = file.webkitRelativePath;
+      const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
+        method: "POST",
+        body: formData
+      });
+      const uploadData = await uploadRes.json();
 
-        await fetch(`${BACKEND_URL}/documents/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            source_path: relativePath,
-            provider: "local",
-          }),
-        });
-      }
+      const metaRes = await fetch(`${BACKEND_URL}/extract-meta/?filename=${uploadData.filename}`, {
+        method: "POST"
+      });
+      const metaJson = await metaRes.json();
 
-      setStatus("Documents registered successfully.");
+      setMetaPath(metaJson.meta_url);
+      setOcrText(metaJson.ocr_text);
     } catch (err) {
       console.error(err);
-      alert("Error registering documents");
-      setStatus("Error");
+      alert("Error processing file");
     } finally {
       setLoading(false);
-      e.target.value = ""; // allow re-selecting same folder
     }
   };
 
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  };
+
+  const handleDragOver = (e) => e.preventDefault();
+
   return (
     <>
-      {/* Header */}
       <header className="app-header">
         <img src={logoSrc} className="header-logo" alt="logo" />
-        <h1 className="header-title">Intelligence Factory</h1>
-        <span className="header-version">(local data mode)</span>
+        <h1 className="header-title">R. Nick</h1>
       </header>
 
       <div className="container">
-        {/* Status */}
-        <div style={{ marginBottom: 10, fontSize: 14 }}>
-          {loading ? "Working…" : status}
+        <div className="folder-input">
+          <label>Storage Folder:</label>
+          <input
+            type="text"
+            value={folderPath}
+            onChange={(e) => setFolderPath(e.target.value)}
+            onBlur={updateFolder}
+            style={{ width: "100%" }}
+          />
         </div>
 
-        {/* Hidden folder picker */}
-        <input
-          ref={folderInputRef}
-          type="file"
-          webkitdirectory="true"
-          multiple
-          style={{ display: "none" }}
-          onChange={handleFolderSelect}
-        />
-
-        {/* Main layout */}
-        <div className="processor-grid">
-          {/* Left stack */}
+        <div
+          className="processor-grid"
+          ref={dropRef}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
           <div className="left-stack">
-            <div className="hero-row">
-              <PortalScene
-                wrapperSize={300}
-                manWidth={220}
-                spinDuration={6}
-                shiftManPercent={0.15}
-                onChooseFile={() => folderInputRef.current?.click()}
-              />
-            </div>
-
-            {/* Instructional copy */}
-            <div
-              className="brief-card"
-              style={{ fontSize: 13, color: "#555" }}
-            >
-              Choose a folder containing your documents.
-              <br />
-              Files remain in your own storage.
-              <br />
-              Intelligence Factory only indexes and analyzes them.
-            </div>
-
-            {/* Table driven by metadata ledger */}
+            <PortalScene
+              wrapperSize={300}
+              manWidth={220}
+              spinDuration={6}
+              shiftManPercent={0.15}
+              onChooseFile={() => document.getElementById("fileInput").click()}
+            />
             <TableOfThings backendUrl={BACKEND_URL} />
-
-            {/* Metadata editor (now ledger-based) */}
-            <div className="brief-card">
-              <MetadataEditor backendUrl={BACKEND_URL} />
-            </div>
+            <MetadataEditor metaPath={metaPath} backendUrl={BACKEND_URL} />
           </div>
 
-          {/* Right side (reserved for future previews / reports) */}
-          <div>
-            <div className="ocr-preview">
-              <div className="ocr-title">Notes</div>
-              <div style={{ fontSize: 13, color: "#666" }}>
-                Select a document from the table to view details,
-                summaries, and derived intelligence.
-              </div>
-            </div>
+          <div className="ocr-preview">
+            <div className="ocr-title">Text</div>
+            <pre style={{ whiteSpace: "pre-wrap" }}>{ocrText || "Drop PDF to start."}</pre>
           </div>
         </div>
+
+        <input
+          type="file"
+          id="fileInput"
+          accept="application/pdf"
+          style={{ display: "none" }}
+          onChange={(e) => e.target.files.length && handleFile(e.target.files[0])}
+        />
       </div>
     </>
   );
