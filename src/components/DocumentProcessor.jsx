@@ -17,11 +17,8 @@ export default function DocumentProcessor() {
 
   // Load last used folder on mount
   useEffect(() => {
-    fetch(`${BACKEND_URL}/current-folder/`)
-      .then((res) => res.json())
-      .then((data) => setFolderPath(data.folder))
-      .catch(console.error);
-  }, []);
+  fetchDocs();
+}, [userFolder]);
 
   // Update backend folder
   const updateFolder = (folder) => {
@@ -144,12 +141,13 @@ export default function DocumentProcessor() {
 
             {/* Table of documents */}
             <TableOfThings
-              backendUrl={BACKEND_URL}
-              onSelect={(doc) => {
-                setMetaPath(doc.metaPath);
-                setSelectedDoc(doc);
-              }}
-            />
+  backendUrl={BACKEND_URL}
+  userFolder={folderPath}       // <-- pass folderPath
+  onSelect={(doc) => {
+    setMetaPath(doc.metaPath);  // now defined
+    setSelectedDoc(doc);
+  }}
+/>
 
             {/* Metadata/brief */}
             <MetadataEditor

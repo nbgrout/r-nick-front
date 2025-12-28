@@ -5,10 +5,11 @@ export default function TableOfThings({ backendUrl, onSelect }) {
   const [docs, setDocs] = useState([]);
 
   const fetchDocs = async () => {
-    const res = await fetch(`${backendUrl}/documents`);
-    const data = await res.json();
-    setDocs(data);
-  };
+  if (!userFolder) return;
+  const res = await fetch(`${backendUrl}/list-documents/?folder=${encodeURIComponent(userFolder)}`);
+  const data = await res.json();
+  setDocs(data);
+};
 
   useEffect(() => {
     fetchDocs();
