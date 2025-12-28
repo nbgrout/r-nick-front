@@ -1,120 +1,91 @@
-//DocumentProcessor.jsx
-import React, { useState, useRef, useEffect } from "react";
+// DocumentProcessor.jsx
+import React, { useState, useEffect, useRef } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
-import logoSrc from "../assets/Logo.png";
 import TableOfThings from "./TableOfThings";
+import logoSrc from "../assets/Logo.png";
 
 export default function DocumentProcessor() {
-  const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [ocrText, setOcrText] = useState("");
-  const [metaPath, setMetaPath] = useState(null);
   const [status, setStatus] = useState("");
-  const dropRef = useRef(null);
+  const [loading, setLoading] = useState(false);
+  const folderInputRef = useRef(null);
 
-  // Use environment variable from Cloudflare Pages
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // Verify backend URL on mount
   useEffect(() => {
     console.log("Backend URL:", BACKEND_URL);
-  }, []);
+  }, [BACKEND_URL]);
 
-  const handleFileChange = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    startProcess(f);
-  };
+  /**
+   * User selects a folder.
+   * Browser gives us a list of files with RELATIVE paths.
+   * We register those paths with the backend ledger.
+   */
+  const handleFolderSelect = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile?.type === "application/pdf") {
-      startProcess(droppedFile);
-    } else {
-      alert("Please drop a PDF file.");
-    }
-  };
-
-  const handleDragOver = (e) => e.preventDefault();
-
-  const startProcess = async (file) => {
-    setFile(file);
-    setOcrText("");
-    setMetaPath(null);
-    setStatus("");
     setLoading(true);
+    setStatus(`Registering ${files.length} documents…`);
 
     try {
-      // Upload PDF
-      const formData = new FormData();
-      formData.append("file", file);
+      for (const file of files) {
+        // Only register documents you care about
+        if (!file.name.match(/\.(pdf|docx|txt)$/i)) continue;
 
-      const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
-        method: "POST",
-        body: formData,
-      });
+        // This is the KEY VALUE you store
+        // Example: "ClientA/Medical/ER_Visit.pdf"
+        const relativePath = file.webkitRelativePath;
 
-      if (!uploadRes.ok) throw new Error("Upload failed");
-      const uploadData = await uploadRes.json();
-      setOcrText(uploadData.ocr_text || "");
+        await fetch(`${BACKEND_URL}/documents/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source_path: relativePath,
+            provider: "local",
+          }),
+        });
+      }
 
-      // Extract metadata
-      setStatus("Extracting metadata…");
-      const metaForm = new FormData();
-      metaForm.append("text", uploadData.ocr_text);
-      metaForm.append("filename", file.name);
-
-      const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-        method: "POST",
-        body: metaForm,
-      });
-
-      if (!metaRes.ok) throw new Error("Metadata extraction failed");
-      const metaJson = await metaRes.json();
-      setMetaPath(metaJson.meta_url);
-      setStatus("Done");
+      setStatus("Documents registered successfully.");
     } catch (err) {
       console.error(err);
-      alert("Error: " + err.message);
+      alert("Error registering documents");
       setStatus("Error");
     } finally {
       setLoading(false);
+      e.target.value = ""; // allow re-selecting same folder
     }
   };
 
   return (
     <>
+      {/* Header */}
       <header className="app-header">
         <img src={logoSrc} className="header-logo" alt="logo" />
-        <h1 className="header-title">R. Nick</h1>
-        <span className="header-version">(v1)</span>
+        <h1 className="header-title">Intelligence Factory</h1>
+        <span className="header-version">(local data mode)</span>
       </header>
 
       <div className="container">
-        {/* Hidden file input */}
-        <input
-          id="fileInput"
-          type="file"
-          accept="application/pdf"
-          onChange={handleFileChange}
-          style={{ display: "none" }}
-        />
-
         {/* Status */}
-        <div style={{ marginBottom: 8, fontSize: 14 }}>
-          {loading ? "Processing…" : status}
+        <div style={{ marginBottom: 10, fontSize: 14 }}>
+          {loading ? "Working…" : status}
         </div>
 
-        {/* Main processor grid */}
-        <div
-          className="processor-grid"
-          ref={dropRef}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
-          {/* Left stack: Portal + Metadata */}
+        {/* Hidden folder picker */}
+        <input
+          ref={folderInputRef}
+          type="file"
+          webkitdirectory="true"
+          multiple
+          style={{ display: "none" }}
+          onChange={handleFolderSelect}
+        />
+
+        {/* Main layout */}
+        <div className="processor-grid">
+          {/* Left stack */}
           <div className="left-stack">
             <div className="hero-row">
               <PortalScene
@@ -122,27 +93,39 @@ export default function DocumentProcessor() {
                 manWidth={220}
                 spinDuration={6}
                 shiftManPercent={0.15}
-                onChooseFile={() =>
-                  document.getElementById("fileInput").click()
-                }
+                onChooseFile={() => folderInputRef.current?.click()}
               />
             </div>
+
+            {/* Instructional copy */}
+            <div
+              className="brief-card"
+              style={{ fontSize: 13, color: "#555" }}
+            >
+              Choose a folder containing your documents.
+              <br />
+              Files remain in your own storage.
+              <br />
+              Intelligence Factory only indexes and analyzes them.
+            </div>
+
+            {/* Table driven by metadata ledger */}
             <TableOfThings backendUrl={BACKEND_URL} />
+
+            {/* Metadata editor (now ledger-based) */}
             <div className="brief-card">
-              <MetadataEditor metaPath={metaPath} backendUrl={BACKEND_URL} />
+              <MetadataEditor backendUrl={BACKEND_URL} />
             </div>
           </div>
 
-          {/* Right: OCR preview */}
+          {/* Right side (reserved for future previews / reports) */}
           <div>
             <div className="ocr-preview">
-              <div className="ocr-title">Text</div>
-              <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-                {ocrText ||
-                  (file
-                    ? "No extracted text."
-                    : "Drop a PDF or use file picker to start.")}
-              </pre>
+              <div className="ocr-title">Notes</div>
+              <div style={{ fontSize: 13, color: "#666" }}>
+                Select a document from the table to view details,
+                summaries, and derived intelligence.
+              </div>
             </div>
           </div>
         </div>

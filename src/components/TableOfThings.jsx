@@ -1,119 +1,100 @@
-console.log("TableOfThings rendered");
-
-import React, { useEffect, useState, useMemo } from "react";
+// TableOfThings.jsx
+import React, { useEffect, useMemo, useState } from "react";
 
 export default function TableOfThings({ backendUrl }) {
   const [docs, setDocs] = useState([]);
-  const [selected, setSelected] = useState({});
-  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState({ key: "added_at", dir: "desc" });
+  const [filter, setFilter] = useState("");
 
-  const [sort, setSort] = useState({ key: null, dir: "asc" });
-  const [filters, setFilters] = useState({});
-
-  const PAGE_SIZE = 20;
   useEffect(() => {
-    setPage(0);
-  }, [filters, sort]);
-  
-  useEffect(() => {
-    fetch(`${backendUrl}/list-documents/`)
-      .then(r => r.json())
+    fetch(`${backendUrl}/documents`)
+      .then((r) => r.json())
       .then(setDocs)
       .catch(console.error);
   }, [backendUrl]);
 
-  const toggle = (base) =>
-    setSelected(s => ({ ...s, [base]: !s[base] }));
-
   const toggleSort = (key) => {
-    setSort(prev => {
-      if (prev.key !== key) return { key, dir: "asc" };
-      if (prev.dir === "asc") return { key, dir: "desc" };
-      return { key: null, dir: "asc" };
-    });
+    setSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" }
+    );
   };
 
-  const filteredAndSorted = useMemo(() => {
-    let rows = [...docs];
+  const rows = useMemo(() => {
+    let r = [...docs];
 
-    // filtering
-    rows = rows.filter(d => {
-      return Object.entries(filters).every(([k, v]) => {
-        if (!v) return true;
-        if (k === "pdf") {
-          return d.pdf.toLowerCase().includes(v.toLowerCase());
-        }
-        return String(d.meta?.[k] ?? "")
-          .toLowerCase()
-          .includes(v.toLowerCase());
-      });
-    });
-
-    // sorting
-    if (sort.key) {
-      rows.sort((a, b) => {
-        const av =
-          sort.key === "pdf"
-            ? a.pdf
-            : String(a.meta?.[sort.key] ?? "");
-        const bv =
-          sort.key === "pdf"
-            ? b.pdf
-            : String(b.meta?.[sort.key] ?? "");
-
-        return sort.dir === "asc"
-          ? av.localeCompare(bv)
-          : bv.localeCompare(av);
-      });
+    if (filter) {
+      r = r.filter((d) =>
+        d.source.path.toLowerCase().includes(filter.toLowerCase()) ||
+        (d.content?.summary || "").toLowerCase().includes(filter.toLowerCase())
+      );
     }
 
-    return rows;
-  }, [docs, filters, sort]);
+    r.sort((a, b) => {
+      const av =
+        sort.key === "path"
+          ? a.source.path
+          : sort.key === "status"
+          ? a.ingestion.status
+          : a.ingestion.added_at;
 
-  const pageDocs = filteredAndSorted.slice(
-    page * PAGE_SIZE,
-    (page + 1) * PAGE_SIZE
-  );
+      const bv =
+        sort.key === "path"
+          ? b.source.path
+          : sort.key === "status"
+          ? b.ingestion.status
+          : b.ingestion.added_at;
 
-  const download = async () => {
-    const bases = Object.keys(selected).filter(k => selected[k]);
-    if (!bases.length) return alert("No documents selected");
-
-    const res = await fetch(`${backendUrl}/download-selected/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bases),
+      return sort.dir === "asc"
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
     });
 
-    const { download_url } = await res.json();
-    window.location.href = `${backendUrl}${download_url}`;
-  };
+    return r;
+  }, [docs, sort, filter]);
 
-  const metaKeys = docs[0] ? Object.keys(docs[0].meta) : [];
+  return (
+    <div className="brief-card">
+      <h3 style={{ marginBottom: 8 }}>Documents</h3>
 
-
-
-return (
-  <div className="brief-card">
-    <div
-      style={{
-        width: "100%",
-        overflowX: "auto",
-        border: "1px solid rgba(0,0,0,0.08)",
-        borderRadius: 8,
-      }}
-    >
-      <table
+      <input
+        placeholder="Filter by path or summary…"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
         style={{
           width: "100%",
-          minWidth: 900,
-          borderCollapse: "collapse",
-          fontSize: 13,
+          marginBottom: 10,
+          padding: 6,
+          borderRadius: 6,
+          border: "1px solid #ccc",
         }}
-      >
-        {/** table head + body stay the same **/}
+      />
+
+      <table style={{ width: "100%", fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th onClick={() => toggleSort("path")}>Path</th>
+            <th onClick={() => toggleSort("status")}>Status</th>
+            <th>Summary</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((d) => (
+            <tr key={d.id}>
+              <td style={{ maxWidth: 240, wordBreak: "break-all" }}>
+                {d.source.path}
+              </td>
+              <td>{d.ingestion.status}</td>
+              <td style={{ maxWidth: 300 }}>
+                {d.content?.summary
+                  ? d.content.summary.slice(0, 120) + "…"
+                  : ""}
+              </td>
+            </tr>
+          ))}
+        </tbody>
       </table>
     </div>
-  </div>
-);
+  );
 }
