@@ -18,18 +18,21 @@ export default function DocumentProcessor() {
   // Load last used folder on mount
   useEffect(() => {
     fetch(`${BACKEND_URL}/current-folder/`)
-      .then(res => res.json())
-      .then(data => setFolderPath(data.folder))
+      .then((res) => res.json())
+      .then((data) => setFolderPath(data.folder))
       .catch(console.error);
   }, []);
 
   // Update backend folder
-  const updateFolder = () => {
+  const updateFolder = (folder) => {
     fetch(`${BACKEND_URL}/set-folder/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder_path: folderPath })
-    }).then(res => res.json()).then(console.log);
+      body: JSON.stringify({ folder_path: folder }),
+    })
+      .then((res) => res.json())
+      .then(console.log)
+      .catch(console.error);
   };
 
   // Handle PDF upload and processing
@@ -43,7 +46,7 @@ export default function DocumentProcessor() {
       // Upload PDF
       const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
         method: "POST",
-        body: formData
+        body: formData,
       });
       const uploadData = await uploadRes.json();
       setOcrText(uploadData.ocr_text);
@@ -56,14 +59,14 @@ export default function DocumentProcessor() {
 
       const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
         method: "POST",
-        body: metaForm
+        body: metaForm,
       });
       const metaJson = await metaRes.json();
 
       setMetaPath(metaJson.meta_path);
       setSelectedDoc({
         ...uploadData,
-        metaPath: metaJson.meta_path
+        metaPath: metaJson.meta_path,
       });
     } catch (err) {
       console.error(err);
@@ -88,16 +91,34 @@ export default function DocumentProcessor() {
       </header>
 
       <div className="container">
-        {/* Folder selection */}
+        {/* Folder selection with Browse button */}
         <div className="folder-input" style={{ marginBottom: 10 }}>
           <label>Storage Folder:</label>
-          <input
-            type="text"
-            value={folderPath}
-            onChange={(e) => setFolderPath(e.target.value)}
-            onBlur={updateFolder}
-            style={{ width: "100%" }}
-          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="text"
+              value={folderPath}
+              readOnly
+              style={{ flex: 1 }}
+            />
+            <button onClick={() => document.getElementById("folderInput").click()}>
+              Browse…
+            </button>
+            <input
+              type="file"
+              id="folderInput"
+              webkitdirectory="true"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                if (e.target.files.length > 0) {
+                  // Use first file's relative path to get the folder name
+                  const folder = e.target.files[0].webkitRelativePath.split("/")[0];
+                  setFolderPath(folder);
+                  updateFolder(folder);
+                }
+              }}
+            />
+          </div>
         </div>
 
         {/* Processing grid */}
@@ -143,7 +164,7 @@ export default function DocumentProcessor() {
           </div>
         </div>
 
-        {/* Hidden file input */}
+        {/* Hidden file input for PDFs */}
         <input
           type="file"
           id="fileInput"
