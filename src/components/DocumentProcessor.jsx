@@ -91,35 +91,39 @@ export default function DocumentProcessor() {
       </header>
 
       <div className="container">
-        {/* Folder selection with Browse button */}
-        <div className="folder-input" style={{ marginBottom: 10 }}>
-          <label>Storage Folder:</label>
-          <div style={{ display: "flex", gap: 6 }}>
-            <input
-              type="text"
-              value={folderPath}
-              readOnly
-              style={{ flex: 1 }}
-            />
-            <button onClick={() => document.getElementById("folderInput").click()}>
-              Browse…
-            </button>
-            <input
-              type="file"
-              id="folderInput"
-              webkitdirectory="true"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                if (e.target.files.length > 0) {
-                  // Use first file's relative path to get the folder name
-                  const folder = e.target.files[0].webkitRelativePath.split("/")[0];
-                  setFolderPath(folder);
-                  updateFolder(folder);
-                }
-              }}
-            />
-          </div>
-        </div>
+       {/* Folder selection with Browse button */}
+<div className="folder-input" style={{ marginBottom: 10 }}>
+  <label>Storage Folder (for processed PDFs and metadata):</label>
+  <div style={{ display: "flex", gap: 6 }}>
+    <input
+      type="text"
+      value={folderPath}
+      readOnly
+      style={{ flex: 1 }}
+    />
+    <button onClick={() => document.getElementById("folderInput").click()}>
+      Choose Folder…
+    </button>
+    <input
+      type="file"
+      id="folderInput"
+      webkitdirectory="true"
+      style={{ display: "none" }}
+      onChange={(e) => {
+        if (e.target.files.length > 0) {
+          // Use first file's relative path to get the folder name
+          const folder = e.target.files[0].webkitRelativePath.split("/")[0];
+          setFolderPath(folder);
+          updateFolder(folder);
+        }
+      }}
+    />
+  </div>
+  <small style={{ color: "#666", display: "block", marginTop: 4 }}>
+    This folder is where your uploaded PDFs will be stored and where the metadata table is saved. No files are uploaded automatically.
+  </small>
+</div>
+
 
         {/* Processing grid */}
         <div
