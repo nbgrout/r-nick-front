@@ -24,28 +24,28 @@ export default function TableOfThings({ backendUrl, onSelect }) {
         </tr>
       </thead>
       <tbody>
-        {docs.map((doc) => (
-          <tr
-            key={doc.id}
-            onClick={() => onSelect && onSelect(doc)}
-            style={{ cursor: "pointer" }}
-          >
-            <td style={{ wordWrap: "break-word", maxWidth: 250 }}>
-              {doc.source?.path?.split("/").pop() || "Unnamed"}
-            </td>
-            <td>{doc.ingestion?.status || "pending"}</td>
-            <td>
-              {doc.source?.path ? (
-                <a href={`file:///${doc.source.path}`} target="_blank">
-                  Open PDF
-                </a>
-              ) : (
-                "N/A"
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
+  {docs.map((doc) => (
+    <tr
+      key={doc.id}
+      onClick={() => onSelect && onSelect(doc)}
+      style={{ cursor: "pointer" }}
+    >
+      <td style={{ wordWrap: "break-word", maxWidth: 250 }}>
+        {doc.name || "Unnamed"}
+      </td>
+      <td>{doc.status || "pending"}</td>
+      <td>
+        {doc.pdf ? (
+          <a href={doc.pdf} target="_blank" rel="noopener noreferrer">
+            Open PDF
+          </a>
+        ) : (
+          "N/A"
+        )}
+      </td>
+    </tr>
+  ))}
+</tbody>
     </table>
   );
 }
