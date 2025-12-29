@@ -5,14 +5,21 @@ export default function TableOfThings({ backendUrl, onSelect }) {
   const [docs, setDocs] = useState([]);
 
   const fetchDocs = async () => {
-    const res = await fetch(`${backendUrl}/documents`);
-    const data = await res.json();
-    setDocs(data);
-  };
+  if (!folderPath) return; // do nothing if folderPath not set
+  const res = await fetch(
+    `${backendUrl}/list-documents/?folder=${encodeURIComponent(folderPath)}`
+  );
+  if (!res.ok) {
+    console.error("Failed to fetch documents");
+    return;
+  }
+  const data = await res.json();
+  setDocs(data);
+};
 
   useEffect(() => {
-    fetchDocs();
-  }, []);
+  fetchDocs();
+}, [folderPath]); // <-- reload whenever folderPath changes
 
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>

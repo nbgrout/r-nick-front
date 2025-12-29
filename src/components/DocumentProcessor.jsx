@@ -17,11 +17,12 @@ export default function DocumentProcessor() {
 
   // Load last used folder on mount
   useEffect(() => {
-    fetch(`${BACKEND_URL}/current-folder/`)
-      .then((res) => res.json())
-      .then((data) => setFolderPath(data.folder))
-      .catch(console.error);
-  }, []);
+  fetch(`${BACKEND_URL}/current-folder/`)
+    .then((res) => res.json())
+    .then((data) => setFolderPath(data.base_dir)) // <- correct field
+    .catch(console.error);
+}, []);
+
 
   // Update backend folder
   const updateFolder = (folder) => {
@@ -58,10 +59,18 @@ export default function DocumentProcessor() {
       metaForm.append("user_folder", folderPath);
 
       const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-        method: "POST",
-        body: metaForm,
-      });
-      const metaJson = await metaRes.json();
+  method: "POST",
+  body: metaForm,
+});
+const metaJson = await metaRes.json();
+
+const metaPathFromRes = metaJson?.meta_path || ""; // safe fallback
+
+setMetaPath(metaPathFromRes);
+setSelectedDoc({
+  ...uploadData,
+  metaPath: metaPathFromRes,
+});
 
       setMetaPath(metaJson.meta_path);
       setSelectedDoc({
@@ -145,12 +154,13 @@ setMetaPath(metaJson.meta_path || "");
 
             {/* Table of documents */}
             <TableOfThings
-              backendUrl={BACKEND_URL}
-              onSelect={(doc) => {
-                setMetaPath(doc.metaPath);
-                setSelectedDoc(doc);
-              }}
-            />
+  backendUrl={BACKEND_URL}
+  folderPath={folderPath}   // <-- pass folderPath
+  onSelect={(doc) => {
+    setMetaPath(doc.metaPath);
+    setSelectedDoc(doc);
+  }}
+/>
 
             {/* Metadata/brief */}
             {metaPath && (
