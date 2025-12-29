@@ -65,9 +65,10 @@ export default function DocumentProcessor() {
 
       setMetaPath(metaJson.meta_path);
       setSelectedDoc({
-        ...uploadData,
-        metaPath: metaJson.meta_path,
-      });
+  ...uploadData,
+  metaPath: metaJson.meta_path || "", // fallback
+});
+setMetaPath(metaJson.meta_path || "");
     } catch (err) {
       console.error(err);
       alert("Error processing file");
@@ -152,11 +153,13 @@ export default function DocumentProcessor() {
             />
 
             {/* Metadata/brief */}
-            <MetadataEditor
-              metaPath={metaPath}
-              backendUrl={BACKEND_URL}
-              key={metaPath} // ensures refresh
-            />
+            {metaPath && (
+  <MetadataEditor
+    metaPath={metaPath}
+    backendUrl={BACKEND_URL}
+    key={metaPath} 
+  />
+)}
           </div>
 
           {/* OCR preview */}
