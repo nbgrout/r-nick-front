@@ -1,20 +1,26 @@
 // TableOfThings.jsx
 import React, { useEffect, useState } from "react";
 
-export default function TableOfThings({ backendUrl, onSelect }) {
+export default function TableOfThings({ backendUrl, folderPath, onSelect }) {
   const [docs, setDocs] = useState([]);
 
   const fetchDocs = async () => {
   if (!folderPath) return; // do nothing if folderPath not set
-  const res = await fetch(
-    `${backendUrl}/list-documents/?folder=${encodeURIComponent(folderPath)}`
-  );
-  if (!res.ok) {
-    console.error("Failed to fetch documents");
-    return;
+  try {
+    const res = await fetch(
+      `${backendUrl}/list-documents/?folder=${encodeURIComponent(folderPath)}`
+    );
+    if (!res.ok) {
+      console.error("Failed to fetch documents", res.status);
+      setDocs([]);
+      return;
+    }
+    const data = await res.json();
+    setDocs(data);
+  } catch (err) {
+    console.error("Error fetching documents", err);
+    setDocs([]);
   }
-  const data = await res.json();
-  setDocs(data);
 };
 
   useEffect(() => {
