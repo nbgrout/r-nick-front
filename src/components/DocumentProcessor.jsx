@@ -4,7 +4,7 @@ import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
 import logoSrc from "../assets/Logo.png";
-import { chooseVault, getVaultPath } from "./vault.js";
+import { chooseVault, getVaultPath } from "./Vault.js";
 
 export default function DocumentProcessor() {
 
