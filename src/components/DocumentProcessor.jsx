@@ -71,10 +71,10 @@ export default function DocumentProcessor() {
       setOcrText(uploadData.ocr_text);
 
       // Extract metadata
-      const metaForm = new FormData();
-      metaForm.append("text", uploadData.ocr_text);
-      metaForm.append("filename", file.name);
-      metaForm.append("user_folder", folderPath);
+const metaForm = new FormData();
+metaForm.append("text", uploadData.ocr_text);
+metaForm.append("filename", file.name);
+// DO NOT send user_folder — backend uses active case
 
       const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
   method: "POST",
