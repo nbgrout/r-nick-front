@@ -1,30 +1,42 @@
-// src/components/vault.js
+// vault.js — browser-safe "Obsidian-style" vault picker
 
-// Prompt user to choose a vault folder (browser-friendly)
+const VAULT_KEY = 'rnick_vault_handle';
+
 export async function chooseVault() {
-  return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.webkitdirectory = true; // allows folder selection
-    input.onchange = (e) => {
-      if (e.target.files.length > 0) {
-        const folder = e.target.files[0].webkitRelativePath.split("/")[0];
-        localStorage.setItem("vaultPath", folder); // persist selection
-        resolve(folder);
-      } else {
-        resolve("");
-      }
+  if (!window.showDirectoryPicker) {
+    alert('Your browser does not support folder access.');
+    return null;
+  }
+
+  const handle = await window.showDirectoryPicker();
+  await saveHandle(handle);
+  return handle.name;
+}
+
+export async function getVaultPath() {
+  const handle = await loadHandle();
+  return handle ? handle.name : '';
+}
+
+/* ---------- persistence ---------- */
+
+async function saveHandle(handle) {
+  const db = await openDB();
+  await db.put('vault', handle, VAULT_KEY);
+}
+
+async function loadHandle() {
+  const db = await openDB();
+  return await db.get('vault', VAULT_KEY);
+}
+
+async function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('rnick', 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore('vault');
     };
-    input.click();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
-}
-
-// Get the last-selected vault from localStorage
-export function getVaultPath() {
-  return localStorage.getItem("vaultPath") || "";
-}
-
-// Save vault to localStorage manually (optional)
-export function setVaultPath(folder) {
-  localStorage.setItem("vaultPath", folder);
 }

@@ -12,22 +12,18 @@ export default function DocumentProcessor() {
   const [metaPath, setMetaPath] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
-const [folderPath, setFolderPath] = useState(
-  localStorage.getItem('vaultPath') || getVaultPath() || ""
-);
+  const [folderPath, setFolderPath] = useState('');
+
 
 
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
   const dropRef = useRef(null);
 
-  // Load last used folder on mount
   useEffect(() => {
-  fetch(`${BACKEND_URL}/current-folder/`)
-    .then((res) => res.json())
-    .then((data) => setFolderPath(data.base_dir)) // <- correct field
-    .catch(console.error);
+  getVaultPath().then((path) => {
+    if (path) setFolderPath(path);
+  });
 }, []);
-
 
   // Update backend folder
   const updateFolder = (folder) => {
@@ -85,21 +81,13 @@ const [folderPath, setFolderPath] = useState(
   body: metaForm,
 });
 const metaJson = await metaRes.json();
-
-const metaPathFromRes = metaJson?.meta_path || ""; // safe fallback
+const metaPathFromRes = metaJson?.meta_path || "";
 
 setMetaPath(metaPathFromRes);
 setSelectedDoc({
   ...uploadData,
   metaPath: metaPathFromRes,
 });
-
-      setMetaPath(metaJson.meta_path);
-      setSelectedDoc({
-  ...uploadData,
-  metaPath: metaJson.meta_path || "", // fallback
-});
-setMetaPath(metaJson.meta_path || "");
     } catch (err) {
       console.error(err);
       alert("Error processing file");
