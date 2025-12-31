@@ -4,13 +4,18 @@ import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
 import logoSrc from "../assets/Logo.png";
+import { chooseVault, getVaultPath } from './vault';
 
 export default function DocumentProcessor() {
-  const [folderPath, setFolderPath] = useState("");
+
   const [ocrText, setOcrText] = useState("");
   const [metaPath, setMetaPath] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
+const [folderPath, setFolderPath] = useState(
+  localStorage.getItem('vaultPath') || getVaultPath() || ""
+);
+
 
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
   const dropRef = useRef(null);
@@ -36,6 +41,23 @@ export default function DocumentProcessor() {
       .catch(console.error);
   };
 
+  const handleChooseFolder = async () => {
+  const folder = await chooseVault();
+  if (folder) {
+    setFolderPath(folder);
+    // optionally tell FastAPI backend
+    await fetch(`${BACKEND_URL}/case/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder_path: folder }),
+    });
+  }
+};
+  useEffect(() => {
+  if (folderPath) {
+    localStorage.setItem('vaultPath', folderPath);
+  }
+}, [folderPath]);
   // Handle PDF upload and processing
   const handleFile = async (file) => {
     setLoading(true);
@@ -103,37 +125,23 @@ setMetaPath(metaJson.meta_path || "");
       <div className="container">
        {/* Folder selection with Browse button */}
 <div className="folder-input" style={{ marginBottom: 10 }}>
-  <label>Storage Folder (for processed PDFs and metadata):</label>
+  <label>Vault Folder (for PDFs and metadata):</label>
   <div style={{ display: "flex", gap: 6 }}>
     <input
       type="text"
       value={folderPath}
       readOnly
       style={{ flex: 1 }}
+      placeholder="No vault selected"
     />
-    <button onClick={() => document.getElementById("folderInput").click()}>
-      Choose Folder…
+    <button onClick={handleChooseFolder}>
+      Choose Vault…
     </button>
-    <input
-      type="file"
-      id="folderInput"
-      webkitdirectory="true"
-      style={{ display: "none" }}
-      onChange={(e) => {
-        if (e.target.files.length > 0) {
-          // Use first file's relative path to get the folder name
-          const folder = e.target.files[0].webkitRelativePath.split("/")[0];
-          setFolderPath(folder);
-          updateFolder(folder);
-        }
-      }}
-    />
   </div>
   <small style={{ color: "#666", display: "block", marginTop: 4 }}>
-    This folder is where your uploaded PDFs will be stored and where the metadata table is saved. No files are uploaded automatically.
+    Select a folder to act as your vault. All uploaded PDFs and metadata will be stored here.
   </small>
 </div>
-
 
         {/* Processing grid */}
         <div
