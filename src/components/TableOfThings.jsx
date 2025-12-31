@@ -1,64 +1,64 @@
 // TableOfThings.jsx
 import React, { useEffect, useState } from "react";
 
-export default function TableOfThings({ backendUrl, folderPath, onSelect }) {
+export default function TableOfThings({ backendUrl, onSelect }) {
   const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const fetchDocs = async () => {
-  if (!folderPath) return; // do nothing if folderPath not set
-  try {
-    const res = await fetch(
-      `${backendUrl}/list-documents/?folder=${encodeURIComponent(folderPath)}`
-    );
-    if (!res.ok) {
-      console.error("Failed to fetch documents", res.status);
-      setDocs([]);
-      return;
+  const fetchDocuments = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${backendUrl}/list-documents/`);
+      const data = await res.json();
+      setDocs(data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load documents");
+    } finally {
+      setLoading(false);
     }
-    const data = await res.json();
-    setDocs(data);
-  } catch (err) {
-    console.error("Error fetching documents", err);
-    setDocs([]);
-  }
-};
+  };
 
   useEffect(() => {
-  fetchDocs();
-}, [folderPath]); // <-- reload whenever folderPath changes
+    fetchDocuments();
+    // Optionally refresh every few seconds if files may change
+    // const interval = setInterval(fetchDocuments, 5000);
+    // return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <div>Loading documents…</div>;
+  if (!docs.length) return <div>No documents in this folder yet.</div>;
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+    <table style={{ width: "100%", marginTop: 12, borderCollapse: "collapse" }}>
       <thead>
         <tr>
-          <th style={{ width: "30%", wordWrap: "break-word" }}>Name</th>
+          <th>Name</th>
           <th>Status</th>
-          <th>PDF</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-  {docs.map((doc) => (
-    <tr
-      key={doc.id}
-      onClick={() => onSelect && onSelect(doc)}
-      style={{ cursor: "pointer" }}
-    >
-      <td style={{ wordWrap: "break-word", maxWidth: 250 }}>
-        {doc.name || "Unnamed"}
-      </td>
-      <td>{doc.status || "pending"}</td>
-      <td>
-        {doc.pdf ? (
-          <a href={doc.pdf} target="_blank" rel="noopener noreferrer">
-            Open PDF
-          </a>
-        ) : (
-          "N/A"
-        )}
-      </td>
-    </tr>
-  ))}
-</tbody>
+        {docs.map((doc) => (
+          <tr key={doc.id} style={{ borderBottom: "1px solid #ccc" }}>
+            <td>{doc.name}</td>
+            <td>{doc.status}</td>
+            <td>
+              <button onClick={() => onSelect(doc)}>Edit</button>
+              {doc.pdf && (
+                <a
+                  href={`${backendUrl}/download/${encodeURIComponent(doc.name)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ marginLeft: 6 }}
+                >
+                  Open PDF
+                </a>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
     </table>
   );
 }

@@ -7,12 +7,9 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Load metadata whenever metaPath changes
   useEffect(() => {
-    if (!metaPath) {
-      setMetadata({});
-      setLoading(false);
-      return;
-    }
+    if (!metaPath) return setMetadata({});
     setLoading(true);
     setError("");
     fetch(`${backendUrl}/metadata?path=${encodeURIComponent(metaPath)}`)
@@ -21,7 +18,7 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
         return r.json();
       })
       .then((data) => {
-        setMetadata(data || {});
+        setMetadata(data.content || {});
         setLoading(false);
       })
       .catch((e) => {
@@ -54,10 +51,6 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     }
   };
 
-  const entries = Object.keys(metadata).length
-    ? Object.entries(metadata)
-    : [];
-
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
@@ -69,15 +62,15 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
       {loading && <div style={{ color: "#666", marginBottom: 8 }}>Loading metadata…</div>}
 
       <div className="metadata-grid">
-        {entries.map(([k, v]) => {
-          const isSummary = k.toLowerCase() === "summary";
+        {Object.entries(metadata).map(([key, value]) => {
+          const isSummary = key.toLowerCase() === "summary";
           return (
-            <div className="field" key={k}>
-              <label>{k.replaceAll("_", " ")}</label>
+            <div className="field" key={key}>
+              <label>{key.replaceAll("_", " ")}</label>
               {isSummary ? (
-                <textarea value={v || ""} onChange={(e) => handleChange(k, e.target.value)} />
+                <textarea value={value || ""} onChange={(e) => handleChange(key, e.target.value)} />
               ) : (
-                <input type="text" value={v || ""} onChange={(e) => handleChange(k, e.target.value)} />
+                <input type="text" value={value || ""} onChange={(e) => handleChange(key, e.target.value)} />
               )}
             </div>
           );
