@@ -37,18 +37,26 @@ export default function DocumentProcessor() {
       .catch(console.error);
   };
 
-  const handleChooseFolder = async () => {
-  const folder = await chooseVault();
+const handleChooseFolder = async () => {
+  const folder = await chooseVault();  // user selects folder
   if (folder) {
-    setFolderPath(folder);
-    // optionally tell FastAPI backend
-    await fetch(`${BACKEND_URL}/case/open`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folder_path: folder }),
+    setFolderPath(folder);              // update frontend state
+
+    // Prepare form data
+    const formData = new URLSearchParams();
+    formData.append("folder_path", folder);
+
+    // Send to backend
+    const res = await fetch(`${BACKEND_URL}/case/open`, {
+      method: "POST",
+      body: formData,  // ✅ send as form, NOT JSON
     });
+
+    const data = await res.json();
+    console.log("Vault set on backend:", data);
   }
 };
+
   useEffect(() => {
   if (folderPath) {
     localStorage.setItem('vaultPath', folderPath);
