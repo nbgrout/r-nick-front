@@ -70,16 +70,21 @@ export default function DocumentProcessor() {
       const uploadData = await uploadRes.json();
       setOcrText(uploadData.ocr_text);
 
-      // Extract metadata
+// Extract metadata (MUST send file)
 const metaForm = new FormData();
-metaForm.append("text", uploadData.ocr_text);
-metaForm.append("filename", file.name);
-// DO NOT send user_folder — backend uses active case
+metaForm.append("file", file);                 // 🔑 REQUIRED
+metaForm.append("text", uploadData.ocr_text); // OCR text
 
-      const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
+const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
   method: "POST",
   body: metaForm,
 });
+
+if (!metaRes.ok) {
+  throw new Error("extract-meta failed");
+}
+
+
 const metaJson = await metaRes.json();
 const metaPathFromRes = metaJson?.meta_path || "";
 
