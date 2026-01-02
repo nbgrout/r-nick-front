@@ -4,7 +4,7 @@ import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
 import logoSrc from "../assets/Logo.png";
-import { chooseVault, getVaultHandle, writeFile } from "./vault.js";
+import { chooseVault, getVaultHandle, writeFile } from "./Vault.js";
 
 export default function DocumentProcessor() {
 
@@ -20,16 +20,10 @@ export default function DocumentProcessor() {
   // Update backend folder
 
 const handleChooseFolder = async () => {
-  try {
-    const handle = await chooseVault(); // user selects folder
-    if (!handle) return;
-
-    // purely UI state — NOT a real path
-    setFolderPath("Vault selected");
-
-    console.log("Vault handle stored locally:", handle);
-  } catch (err) {
-    console.error("Vault selection failed:", err);
+  const folder = await chooseVault();
+  if (folder) {
+    setFolderPath(folder.name); // UI display only
+    console.log("Vault chosen:", folder);
   }
 };
 
