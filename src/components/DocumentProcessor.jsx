@@ -15,9 +15,9 @@ const [selectedDoc, setSelectedDoc] = useState(null);
 
 const [vault, setVault] = useState(null);
 const [folderPath, setFolderPath] = useState("");
-
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
 // Update backend folder
-
+const dropRef = useRef(null);
 const handleChooseFolder = async () => {
   try {
     const handle = await chooseVault();

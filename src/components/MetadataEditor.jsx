@@ -20,6 +20,7 @@ useEffect(() => {
   (async () => {
     try {
       const vault = await getVaultHandle();
+      if (!vault) throw new Error("No vault available");
       const text = await readFile(vault, metaPath);
       setMetadata(JSON.parse(text));
     } catch (e) {

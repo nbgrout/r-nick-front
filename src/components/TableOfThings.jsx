@@ -10,12 +10,15 @@ const fetchDocuments = async () => {
   setLoading(true);
   try {
     const vault = await getVaultHandle();
-    if (!vault) return setDocs([]);
+    if (!vault) {
+      setDocs([]);
+      return;
+    }
 
-    const docs = [];
-    for await (const [name, handle] of vault.entries()) {
+    const entries = [];
+    for await (const [name, entry] of vault.entries()) {
       if (name.endsWith("_meta.json")) {
-        docs.push({
+        entries.push({
           id: name,
           name: name.replace("_meta.json", ".pdf"),
           status: "local",
@@ -23,10 +26,10 @@ const fetchDocuments = async () => {
         });
       }
     }
-    setDocs(docs);
+    setDocs(entries);
   } catch (err) {
     console.error(err);
-    alert("Failed to load documents from vault");
+    setDocs([]);
   } finally {
     setLoading(false);
   }
