@@ -4,7 +4,8 @@ import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
 import logoSrc from "../assets/Logo.png";
-import { chooseVault, getVaultPath } from "./Vault.js";
+import { chooseVault } from "./vault.js";
+import { getVaultHandle, writeFile } from "./vault.js";
 
 export default function DocumentProcessor() {
 
@@ -19,23 +20,8 @@ export default function DocumentProcessor() {
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
   const dropRef = useRef(null);
 
-  useEffect(() => {
-  getVaultPath().then((path) => {
-    if (path) setFolderPath(path);
-  });
-}, []);
-
+ 
   // Update backend folder
-  const updateFolder = (folder) => {
-    fetch(`${BACKEND_URL}/set-folder/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder_path: folder }),
-    })
-      .then((res) => res.json())
-      .then(console.log)
-      .catch(console.error);
-  };
 
 const handleChooseFolder = async () => {
   const folder = await chooseVault();  // user selects folder
@@ -44,6 +30,9 @@ const handleChooseFolder = async () => {
 
     // Prepare form data
     const formData = new URLSearchParams();
+    console.log("Vault path chosen in React:", folder);
+    console.log("Type of folder:", typeof folder);
+
     formData.append("folder_path", folder);
 
     // Send to backend
@@ -64,50 +53,80 @@ const handleChooseFolder = async () => {
 }, [folderPath]);
   // Handle PDF upload and processing
   const handleFile = async (file) => {
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
- 
+  setLoading(true);
 
-      // Upload PDF
-      const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
-        method: "POST",
-        body: formData,
-      });
-      const uploadData = await uploadRes.json();
-      setOcrText(uploadData.ocr_text);
-
-// Extract metadata (MUST send file)
-const metaForm = new FormData();
-metaForm.append("file", file);                 // 🔑 REQUIRED
-metaForm.append("text", uploadData.ocr_text); // OCR text
-
-const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-  method: "POST",
-  body: metaForm,
-});
-
-if (!metaRes.ok) {
-  throw new Error("extract-meta failed");
-}
-
-
-const metaJson = await metaRes.json();
-const metaPathFromRes = metaJson?.meta_path || "";
-
-setMetaPath(metaPathFromRes);
-setSelectedDoc({
-  ...uploadData,
-  metaPath: metaPathFromRes,
-});
-    } catch (err) {
-      console.error(err);
-      alert("Error processing file");
-    } finally {
-      setLoading(false);
+  try {
+    // 1️⃣ Ensure vault exists
+    const vault = await getVaultHandle();
+    if (!vault) {
+      alert("Please choose a vault folder first.");
+      return;
     }
-  };
+
+    // 2️⃣ Upload PDF to backend for OCR
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error("OCR upload failed");
+    }
+
+    const uploadData = await uploadRes.json();
+    const ocrText = uploadData.ocr_text;
+
+    setOcrText(ocrText);
+
+    // 3️⃣ WRITE FILES LOCALLY (PDF + TXT)
+    await writeFile(vault, file.name, file);
+    await writeFile(
+      vault,
+      file.name.replace(/\.pdf$/i, ".txt"),
+      ocrText
+    );
+
+    // 4️⃣ Extract metadata
+    const metaForm = new FormData();
+    metaForm.append("text", ocrText);
+
+    const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
+      method: "POST",
+      body: metaForm,
+    });
+
+    if (!metaRes.ok) {
+      throw new Error("Metadata extraction failed");
+    }
+
+    const metaJson = await metaRes.json();
+    const metadata = metaJson.metadata;
+
+    // 5️⃣ WRITE METADATA JSON LOCALLY
+    const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
+    await writeFile(
+      vault,
+      metaFilename,
+      JSON.stringify(metadata, null, 2)
+    );
+
+    setMetaPath(metaFilename);
+    setSelectedDoc({
+      name: file.name,
+      metaPath: metaFilename,
+      metadata,
+    });
+
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Error processing file");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleDrop = (e) => {
     e.preventDefault();

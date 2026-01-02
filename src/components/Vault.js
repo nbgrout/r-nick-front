@@ -1,21 +1,26 @@
-// vault.js — browser-safe "Obsidian-style" vault picker
-
 const VAULT_KEY = 'rnick_vault_handle';
 
 export async function chooseVault() {
-  if (!window.showDirectoryPicker) {
-    alert('Your browser does not support folder access.');
-    return null;
-  }
-
   const handle = await window.showDirectoryPicker();
   await saveHandle(handle);
-  return handle.name;
+  return handle;
 }
 
-export async function getVaultPath() {
-  const handle = await loadHandle();
-  return handle ? handle.name : '';
+export async function getVaultHandle() {
+  return await loadHandle();
+}
+
+export async function writeFile(handle, name, contents) {
+  const fileHandle = await handle.getFileHandle(name, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(contents);
+  await writable.close();
+}
+
+export async function readFile(handle, name) {
+  const fileHandle = await handle.getFileHandle(name);
+  const file = await fileHandle.getFile();
+  return await file.text();
 }
 
 /* ---------- persistence ---------- */
