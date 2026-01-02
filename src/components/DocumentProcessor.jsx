@@ -4,8 +4,7 @@ import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
 import logoSrc from "../assets/Logo.png";
-import { chooseVault } from "./vault.js";
-import { getVaultHandle, writeFile } from "./vault.js";
+import { chooseVault, getVaultHandle, writeFile } from "./vault.js";
 
 export default function DocumentProcessor() {
 
@@ -13,9 +12,6 @@ export default function DocumentProcessor() {
   const [metaPath, setMetaPath] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
-  const [folderPath, setFolderPath] = useState('');
-
-
 
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
   const dropRef = useRef(null);
@@ -24,45 +20,27 @@ export default function DocumentProcessor() {
   // Update backend folder
 
 const handleChooseFolder = async () => {
-  const folder = await chooseVault();  // user selects folder
-  if (folder) {
-    setFolderPath(folder);              // update frontend state
+  try {
+    const handle = await chooseVault(); // user selects folder
+    if (!handle) return;
 
-    // Prepare form data
-    const formData = new URLSearchParams();
-    console.log("Vault path chosen in React:", folder);
-    console.log("Type of folder:", typeof folder);
+    // purely UI state — NOT a real path
+    setFolderPath("Vault selected");
 
-    formData.append("folder_path", folder);
-
-    // Send to backend
-    const res = await fetch(`${BACKEND_URL}/case/open`, {
-      method: "POST",
-      body: formData,  // ✅ send as form, NOT JSON
-    });
-
-    const data = await res.json();
-    console.log("Vault set on backend:", data);
+    console.log("Vault handle stored locally:", handle);
+  } catch (err) {
+    console.error("Vault selection failed:", err);
   }
 };
 
   useEffect(() => {
-  if (folderPath) {
-    localStorage.setItem('vaultPath', folderPath);
-  }
+
 }, [folderPath]);
   // Handle PDF upload and processing
   const handleFile = async (file) => {
   setLoading(true);
 
   try {
-    // 1️⃣ Ensure vault exists
-    const vault = await getVaultHandle();
-    if (!vault) {
-      alert("Please choose a vault folder first.");
-      return;
-    }
-
     // 2️⃣ Upload PDF to backend for OCR
     const formData = new FormData();
     formData.append("file", file);
@@ -80,14 +58,6 @@ const handleChooseFolder = async () => {
     const ocrText = uploadData.ocr_text;
 
     setOcrText(ocrText);
-
-    // 3️⃣ WRITE FILES LOCALLY (PDF + TXT)
-    await writeFile(vault, file.name, file);
-    await writeFile(
-      vault,
-      file.name.replace(/\.pdf$/i, ".txt"),
-      ocrText
-    );
 
     // 4️⃣ Extract metadata
     const metaForm = new FormData();

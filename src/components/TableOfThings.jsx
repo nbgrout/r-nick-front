@@ -1,23 +1,37 @@
 // TableOfThings.jsx
 import React, { useEffect, useState } from "react";
+import { getVaultHandle } from "./vault.js";
 
 export default function TableOfThings({ backendUrl, onSelect }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchDocuments = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${backendUrl}/list-documents/`);
-      const data = await res.json();
-      setDocs(data);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to load documents");
-    } finally {
-      setLoading(false);
+const fetchDocuments = async () => {
+  setLoading(true);
+  try {
+    const vault = await getVaultHandle();
+    if (!vault) return setDocs([]);
+
+    const docs = [];
+    for await (const [name, handle] of vault.entries()) {
+      if (name.endsWith("_meta.json")) {
+        docs.push({
+          id: name,
+          name: name.replace("_meta.json", ".pdf"),
+          status: "local",
+          metaPath: name
+        });
+      }
     }
-  };
+    setDocs(docs);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to load documents from vault");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchDocuments();

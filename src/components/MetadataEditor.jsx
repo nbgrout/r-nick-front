@@ -8,24 +8,24 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
   const [error, setError] = useState("");
 
   // Load metadata whenever metaPath changes
-  useEffect(() => {
-    if (!metaPath) return setMetadata({});
-    setLoading(true);
-    setError("");
-    fetch(`${backendUrl}/metadata?path=${encodeURIComponent(metaPath)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to fetch metadata");
-        return r.json();
-      })
-      .then((data) => {
-        setMetadata(data.content || {});
-        setLoading(false);
-      })
-      .catch((e) => {
-        setError("Failed to load metadata: " + e.message);
-        setLoading(false);
-      });
-  }, [metaPath]);
+useEffect(() => {
+  if (!metaPath) return;
+
+  setLoading(true);
+  setError("");
+
+  (async () => {
+    try {
+      const vault = await getVaultHandle();
+      const text = await readFile(vault, metaPath);
+      setMetadata(JSON.parse(text));
+    } catch (e) {
+      setError("Failed to load metadata: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, [metaPath]);
 
   const handleChange = (key, value) => {
     setMetadata((prev) => ({ ...prev, [key]: value }));
