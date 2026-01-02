@@ -1,6 +1,8 @@
 
 // MetadataEditor.jsx
 import React, { useState, useEffect } from "react";
+import { getVaultHandle, readFile, writeFile } from "./Vault.js";
+
 
 export default function MetadataEditor({ metaPath, backendUrl }) {
   const [metadata, setMetadata] = useState({});
@@ -33,24 +35,25 @@ useEffect(() => {
   };
 
   const handleSave = async () => {
-    if (!metaPath) return;
-    setSaving(true);
-    setError("");
-    try {
-      const payload = { meta_path: metaPath, content: metadata };
-      const res = await fetch(`${backendUrl}/documents/update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      alert("Metadata saved!");
-    } catch (e) {
-      setError("Save failed: " + e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!metaPath) return;
+
+  setSaving(true);
+  setError("");
+
+  try {
+    const vault = await getVaultHandle();
+    await writeFile(
+      vault,
+      metaPath,
+      JSON.stringify(metadata, null, 2)
+    );
+    alert("Metadata saved locally!");
+  } catch (e) {
+    setError("Save failed: " + e.message);
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <div style={{ marginTop: 12 }}>

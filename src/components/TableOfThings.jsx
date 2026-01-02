@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { getVaultHandle } from "./Vault.js";
 
-export default function TableOfThings({ backendUrl, onSelect }) {
+export default function TableOfThings({ backendUrl, folderPath, onSelect }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -33,12 +33,9 @@ const fetchDocuments = async () => {
 };
 
 
-  useEffect(() => {
-    fetchDocuments();
-    // Optionally refresh every few seconds if files may change
-    // const interval = setInterval(fetchDocuments, 5000);
-    // return () => clearInterval(interval);
-  }, []);
+useEffect(() => {
+  fetchDocuments();
+}, [folderPath]);
 
   if (loading) return <div>Loading documents…</div>;
   if (!docs.length) return <div>No documents in this folder yet.</div>;
@@ -59,16 +56,14 @@ const fetchDocuments = async () => {
             <td>{doc.status}</td>
             <td>
               <button onClick={() => onSelect(doc)}>Edit</button>
-              {doc.pdf && (
-                <a
-                  href={`${backendUrl}/download/${encodeURIComponent(doc.name)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ marginLeft: 6 }}
-                >
-                  Open PDF
-                </a>
-              )}
+              <a
+  href={`${backendUrl}/download/${encodeURIComponent(doc.name)}`}
+  target="_blank"
+  rel="noreferrer"
+  style={{ marginLeft: 6 }}
+>
+  Open PDF
+</a>
             </td>
           </tr>
         ))}

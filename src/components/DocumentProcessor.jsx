@@ -8,24 +8,30 @@ import { chooseVault, getVaultHandle, writeFile } from "./Vault.js";
 
 export default function DocumentProcessor() {
 
-  const [ocrText, setOcrText] = useState("");
-  const [metaPath, setMetaPath] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState(null);
+const [ocrText, setOcrText] = useState("");
+const [metaPath, setMetaPath] = useState(null);
+const [loading, setLoading] = useState(false);
+const [selectedDoc, setSelectedDoc] = useState(null);
 
-  const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
-  const dropRef = useRef(null);
+const [vault, setVault] = useState(null);
+const [folderPath, setFolderPath] = useState("");
 
- 
-  // Update backend folder
+// Update backend folder
 
 const handleChooseFolder = async () => {
-  const folder = await chooseVault();
-  if (folder) {
-    setFolderPath(folder.name); // UI display only
-    console.log("Vault chosen:", folder);
+  try {
+    const handle = await chooseVault();
+    if (!handle) return;
+
+    setVault(handle);
+    setFolderPath(handle.name); // UI display only
+
+    console.log("Vault chosen:", handle);
+  } catch (err) {
+    console.error("Vault selection failed:", err);
   }
 };
+
 
   useEffect(() => {
 
@@ -33,7 +39,10 @@ const handleChooseFolder = async () => {
   // Handle PDF upload and processing
   const handleFile = async (file) => {
   setLoading(true);
-
+if (!vault) {
+  alert("Please choose a vault folder first.");
+  return;
+}
   try {
     // 2️⃣ Upload PDF to backend for OCR
     const formData = new FormData();
