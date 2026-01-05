@@ -1,6 +1,6 @@
 // TableOfThings.jsx
 import React, { useEffect, useState } from "react";
-import { getVaultHandle } from "./Vault.js";
+import { getVaultHandle } from "./Vault_DEPRECATED.js";
 
 export default function TableOfThings({ backendUrl, folderPath, onSelect }) {
   const [docs, setDocs] = useState([]);

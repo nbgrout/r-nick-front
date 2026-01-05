@@ -1,7 +1,7 @@
 
 // MetadataEditor.jsx
 import React, { useState, useEffect } from "react";
-import { getVaultHandle, readFile, writeFile } from "./Vault.js";
+import { readFile, writeFile } from "./Vault_DEPRECATED.js";
 
 
 export default function MetadataEditor({ metaPath, backendUrl }) {
