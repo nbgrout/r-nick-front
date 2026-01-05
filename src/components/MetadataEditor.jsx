@@ -1,102 +1,88 @@
 
 // MetadataEditor.jsx
 import React, { useState, useEffect } from "react";
-import { readFile, writeFile } from "./Vault_DEPRECATED.js";
-
+import { useVault } from "../VaultContext.jsx"; // ✅ Use VaultContext
 
 export default function MetadataEditor({ metaPath, backendUrl }) {
+  const { readFile, writeFile, isReady } = useVault();
+
   const [metadata, setMetadata] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
 
-  // Load metadata whenever metaPath changes
-useEffect(() => {
-  if (!metaPath) return;
+  // Load metadata from vault when metaPath changes
+  useEffect(() => {
+    if (!metaPath) return;
 
-  setLoading(true);
-  setError("");
+    const loadMetadata = async () => {
+      setLoading(true);
+      try {
+        if (!isReady) throw new Error("Vault not selected");
 
-  (async () => {
-    try {
-      const vault = await getVaultHandle();
-      if (!vault) throw new Error("No vault available");
-      const text = await readFile(vault, metaPath);
-      setMetadata(JSON.parse(text));
-    } catch (e) {
-      setError("Failed to load metadata: " + e.message);
-    } finally {
-      setLoading(false);
-    }
-  })();
-}, [metaPath]);
+        const text = await readFile(metaPath);
+        setMetadata(JSON.parse(text));
+      } catch (err) {
+        console.error("Failed to load metadata:", err);
+        setMetadata({});
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleChange = (key, value) => {
-    setMetadata((prev) => ({ ...prev, [key]: value }));
+    loadMetadata();
+  }, [metaPath, readFile, isReady]);
+
+  const handleChange = (field, value) => {
+    setMetadata((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
-  if (!metaPath) return;
+    if (!metaPath) return;
+    setSaving(true);
+    try {
+      if (!isReady) throw new Error("Vault not selected");
 
-  setSaving(true);
-  setError("");
+      await writeFile(metaPath, JSON.stringify(metadata, null, 2));
+      alert("Metadata saved successfully.");
+    } catch (err) {
+      console.error("Failed to save metadata:", err);
+      alert(err.message || "Failed to save metadata");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  try {
-    const vault = await getVaultHandle();
-    await writeFile(
-      vault,
-      metaPath,
-      JSON.stringify(metadata, null, 2)
-    );
-    alert("Metadata saved locally!");
-  } catch (e) {
-    setError("Save failed: " + e.message);
-  } finally {
-    setSaving(false);
-  }
-};
+  if (loading) return <div>Loading metadata…</div>;
+  if (!Object.keys(metadata).length) return <div>No metadata available.</div>;
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-        <h2 style={{ color: "var(--brand-purple)", margin: 0 }}>Brief</h2>
-        <div style={{ fontSize: 13, color: "#666" }}>{saving ? "Saving..." : ""}</div>
+    <div className="metadata-editor" style={{ marginTop: 12 }}>
+      <h3>Metadata Editor</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Object.entries(metadata).map(([key, value]) => (
+          <div key={key} style={{ display: "flex", flexDirection: "column" }}>
+            <label style={{ fontWeight: "bold" }}>{key}</label>
+            <input
+              type="text"
+              value={value || ""}
+              onChange={(e) => handleChange(key, e.target.value)}
+              style={{ padding: 4, borderRadius: 4, border: "1px solid #ccc" }}
+            />
+          </div>
+        ))}
       </div>
-
-      {error && <div style={{ color: "crimson", marginBottom: 8 }}>{error}</div>}
-      {loading && <div style={{ color: "#666", marginBottom: 8 }}>Loading metadata…</div>}
-
-      <div className="metadata-grid">
-        {Object.entries(metadata).map(([key, value]) => {
-          const isSummary = key.toLowerCase() === "summary";
-          return (
-            <div className="field" key={key}>
-              <label>{key.replaceAll("_", " ")}</label>
-              {isSummary ? (
-                <textarea value={value || ""} onChange={(e) => handleChange(key, e.target.value)} />
-              ) : (
-                <input type="text" value={value || ""} onChange={(e) => handleChange(key, e.target.value)} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-        <button
-          onClick={handleSave}
-          disabled={saving || !metaPath}
-          style={{
-            background: "var(--brand-purple)",
-            color: "#fff",
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "none",
-          }}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
+      <button
+        onClick={handleSave}
+        disabled={saving || !isReady}
+        style={{
+          marginTop: 12,
+          padding: "6px 12px",
+          borderRadius: 4,
+          cursor: "pointer",
+        }}
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
     </div>
   );
 }

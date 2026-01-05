@@ -1,113 +1,92 @@
-// DocumentProcessor.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
 import logoSrc from "../assets/Logo.png";
-import {
-  chooseVault,
-  getVaultHandle,
-  writeFile,
-} from "./Vault_DEPRECATED.js";
+import { useVault } from "../VaultContext";
 
 export default function DocumentProcessor() {
+  const [ocrText, setOcrText] = useState("");
+  const [metaPath, setMetaPath] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState(null);
 
-const [ocrText, setOcrText] = useState("");
-const [metaPath, setMetaPath] = useState(null);
-const [loading, setLoading] = useState(false);
-const [selectedDoc, setSelectedDoc] = useState(null);
+  const { chooseVault, isReady, writeFile } = useVault();
 
-const [vault, setVault] = useState(null);
-const [folderPath, setFolderPath] = useState("");
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
-// Update backend folder
-const dropRef = useRef(null);
-const handleChooseFolder = async () => {
-  try {
-    const handle = await chooseVault();
-    if (!handle) return;
+  const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
+  const dropRef = useRef(null);
 
-    setVault(handle);
-    setFolderPath(handle.name); // UI display only
+  const handleChooseFolder = async () => {
+    try {
+      await chooseVault();
+    } catch (err) {
+      console.error("Vault selection failed:", err);
+      alert(err.message || "Vault selection failed");
+    }
+  };
 
-    console.log("Vault chosen:", handle);
-  } catch (err) {
-    console.error("Vault selection failed:", err);
-  }
-};
-
-
-  useEffect(() => {
-
-}, [folderPath]);
-  // Handle PDF upload and processing
   const handleFile = async (file) => {
-  setLoading(true);
-if (!vault) {
-  alert("Please choose a vault folder first.");
-  return;
-}
-  try {
-    // 2️⃣ Upload PDF to backend for OCR
-    const formData = new FormData();
-    formData.append("file", file);
+    setLoading(true);
+    try {
+      // Upload PDF for OCR
+      const formData = new FormData();
+      formData.append("file", file);
 
-    const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
-      method: "POST",
-      body: formData,
-    });
+      const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
+        method: "POST",
+        body: formData,
+      });
 
-    if (!uploadRes.ok) {
-      throw new Error("OCR upload failed");
+      if (!uploadRes.ok) {
+        throw new Error("OCR upload failed");
+      }
+
+      const uploadData = await uploadRes.json();
+      const ocrText = uploadData.ocr_text;
+      setOcrText(ocrText);
+
+      // Extract metadata
+      const metaForm = new FormData();
+      metaForm.append("text", ocrText);
+
+      const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
+        method: "POST",
+        body: metaForm,
+      });
+
+      if (!metaRes.ok) {
+        throw new Error("Metadata extraction failed");
+      }
+
+      const metaJson = await metaRes.json();
+      const metadata = metaJson.metadata;
+
+      // Write metadata locally (fail-fast if vault missing)
+      const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
+      await writeFile(
+        metaFilename,
+        JSON.stringify(metadata, null, 2)
+      );
+
+      setMetaPath(metaFilename);
+      setSelectedDoc({
+        name: file.name,
+        metaPath: metaFilename,
+        metadata,
+      });
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Error processing file");
+    } finally {
+      setLoading(false);
     }
-
-    const uploadData = await uploadRes.json();
-    const ocrText = uploadData.ocr_text;
-
-    setOcrText(ocrText);
-
-    // 4️⃣ Extract metadata
-    const metaForm = new FormData();
-    metaForm.append("text", ocrText);
-
-    const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-      method: "POST",
-      body: metaForm,
-    });
-
-    if (!metaRes.ok) {
-      throw new Error("Metadata extraction failed");
-    }
-
-    const metaJson = await metaRes.json();
-    const metadata = metaJson.metadata;
-
-    // 5️⃣ WRITE METADATA JSON LOCALLY
-    const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
-    await writeFile(
-      vault,
-      metaFilename,
-      JSON.stringify(metadata, null, 2)
-    );
-
-    setMetaPath(metaFilename);
-    setSelectedDoc({
-      name: file.name,
-      metaPath: metaFilename,
-      metadata,
-    });
-
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Error processing file");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length) {
+      handleFile(e.dataTransfer.files[0]);
+    }
   };
 
   const handleDragOver = (e) => e.preventDefault();
@@ -120,27 +99,23 @@ if (!vault) {
       </header>
 
       <div className="container">
-       {/* Folder selection with Browse button */}
-<div className="folder-input" style={{ marginBottom: 10 }}>
-  <label>Vault Folder (for PDFs and metadata):</label>
-  <div style={{ display: "flex", gap: 6 }}>
-    <input
-      type="text"
-      value={folderPath}
-      readOnly
-      style={{ flex: 1 }}
-      placeholder="No vault selected"
-    />
-    <button onClick={handleChooseFolder}>
-      Choose Vault…
-    </button>
-  </div>
-  <small style={{ color: "#666", display: "block", marginTop: 4 }}>
-    Select a folder to act as your vault. All uploaded PDFs and metadata will be stored here.
-  </small>
-</div>
+        {/* Vault selection */}
+        <div className="folder-input" style={{ marginBottom: 10 }}>
+          <label>Vault Folder (for PDFs and metadata):</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="text"
+              value={isReady ? "Vault selected" : ""}
+              readOnly
+              style={{ flex: 1 }}
+              placeholder="No vault selected"
+            />
+            <button onClick={handleChooseFolder}>
+              Choose Vault…
+            </button>
+          </div>
+        </div>
 
-        {/* Processing grid */}
         <div
           className="processor-grid"
           ref={dropRef}
@@ -148,36 +123,34 @@ if (!vault) {
           onDragOver={handleDragOver}
         >
           <div className="left-stack">
-            {/* Portal */}
             <PortalScene
               wrapperSize={300}
               manWidth={220}
               spinDuration={6}
               shiftManPercent={0.15}
-              onChooseFile={() => document.getElementById("fileInput").click()}
+              onChooseFile={() =>
+                document.getElementById("fileInput").click()
+              }
             />
 
-            {/* Table of documents */}
             <TableOfThings
-  backendUrl={BACKEND_URL}
-  folderPath={folderPath}   // <-- pass folderPath
-  onSelect={(doc) => {
-    setMetaPath(doc.metaPath);
-    setSelectedDoc(doc);
-  }}
-/>
+              backendUrl={BACKEND_URL}
+              folderPath={isReady ? "ready" : ""}
+              onSelect={(doc) => {
+                setMetaPath(doc.metaPath);
+                setSelectedDoc(doc);
+              }}
+            />
 
-            {/* Metadata/brief */}
             {metaPath && (
-  <MetadataEditor
-    metaPath={metaPath}
-    backendUrl={BACKEND_URL}
-    key={metaPath} 
-  />
-)}
+              <MetadataEditor
+                metaPath={metaPath}
+                backendUrl={BACKEND_URL}
+                key={metaPath}
+              />
+            )}
           </div>
 
-          {/* OCR preview */}
           <div className="ocr-preview">
             <div className="ocr-title">Text</div>
             <pre style={{ whiteSpace: "pre-wrap" }}>
@@ -186,13 +159,14 @@ if (!vault) {
           </div>
         </div>
 
-        {/* Hidden file input for PDFs */}
         <input
           type="file"
           id="fileInput"
           accept="application/pdf"
           style={{ display: "none" }}
-          onChange={(e) => e.target.files.length && handleFile(e.target.files[0])}
+          onChange={(e) =>
+            e.target.files.length && handleFile(e.target.files[0])
+          }
         />
       </div>
     </>
