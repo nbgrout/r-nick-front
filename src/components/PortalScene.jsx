@@ -1,3 +1,4 @@
+//PortalScene.jsx
 import React, { useEffect } from "react";
 import { motion, useAnimation } from "framer-motion";
 import portalImg from "../assets/Portal.png";

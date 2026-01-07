@@ -11,14 +11,11 @@ export default function DocumentProcessor() {
   const [metaPath, setMetaPath] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
+  const [docsInTable, setDocsInTable] = useState([]); // Track all docs including processing
 
   const { chooseVault, isReady, writeFile } = useVault();
-
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
-
-  // Table refresh reference
-  const tableRefetchRef = useRef(null);
 
   const handleChooseFolder = async () => {
     try {
@@ -29,68 +26,76 @@ export default function DocumentProcessor() {
     }
   };
 
-  const handleFile = async (file) => {
-    setLoading(true);
-    try {
-      // Upload PDF for OCR
-      const formData = new FormData();
-      formData.append("file", file);
+const handleFile = async (file) => {
+  // Step 0 — check vault is ready
+  if (!isReady) {
+    alert("Please select a vault first");
+    return;
+  }
 
-      const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("OCR upload failed");
-      }
-
-      const uploadData = await uploadRes.json();
-      const fullText = uploadData.ocr_text;
-      setOcrText(fullText);
-
-      // Save OCR text locally
-      const ocrFilename = file.name.replace(/\.pdf$/i, "_ocr.txt");
-      await writeFile(ocrFilename, fullText);
-
-      // Extract metadata
-      const metaForm = new FormData();
-      metaForm.append("text", fullText);
-
-      const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-        method: "POST",
-        body: metaForm,
-      });
-
-      if (!metaRes.ok) {
-        throw new Error("Metadata extraction failed");
-      }
-
-      const metaJson = await metaRes.json();
-      const metadata = metaJson.metadata;
-
-      // Write metadata locally
-      const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
-      await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
-
-      setMetaPath(metaFilename);
-      setSelectedDoc({
-        name: file.name,
-        metaPath: metaFilename,
-        metadata,
-      });
-
-      // Refresh the table automatically
-      if (tableRefetchRef.current) {
-        tableRefetchRef.current();
-      }
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Error processing file");
-    } finally {
-      setLoading(false);
-    }
+  // Step 1 — immediately show in table as "processing"
+  const newDoc = {
+    id: file.name + "-" + Date.now(), // unique ID
+    name: file.name,
+    status: "processing",
+    metaPath: null,
   };
+  setDocsInTable((prev) => [...prev, newDoc]); // trigger table render
+
+  setLoading(true);
+  try {
+    // Step 2 — upload PDF for OCR
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const uploadRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!uploadRes.ok) throw new Error("OCR upload failed");
+    const uploadData = await uploadRes.json();
+    const ocrText = uploadData.ocr_text;
+    setOcrText(ocrText);
+
+    // Step 3 — extract metadata
+    const metaForm = new FormData();
+    metaForm.append("text", ocrText);
+
+    const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
+      method: "POST",
+      body: metaForm,
+    });
+
+    if (!metaRes.ok) throw new Error("Metadata extraction failed");
+    const metadata = (await metaRes.json()).metadata;
+
+    // Step 4 — save metadata locally
+    const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
+    await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
+
+    // Step 5 — update table row to "local"
+    setDocsInTable((prev) =>
+      prev.map((doc) =>
+        doc.id === newDoc.id
+          ? { ...doc, status: "local", metaPath: metaFilename, metadata }
+          : doc
+      )
+    );
+  } catch (err) {
+    console.error(err);
+    // Step 6 — mark table row as error
+    setDocsInTable((prev) =>
+      prev.map((doc) =>
+        doc.id === newDoc.id ? { ...doc, status: "error" } : doc
+      )
+    );
+    alert(err.message || "Error processing file");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -109,9 +114,8 @@ export default function DocumentProcessor() {
       </header>
 
       <div className="container">
-        {/* Vault selection */}
         <div className="folder-input" style={{ marginBottom: 10 }}>
-          <label>Vault Folder (for PDFs, metadata, OCR):</label>
+          <label>Vault Folder (for PDFs and metadata):</label>
           <div style={{ display: "flex", gap: 6 }}>
             <input
               type="text"
@@ -136,33 +140,25 @@ export default function DocumentProcessor() {
               manWidth={220}
               spinDuration={6}
               shiftManPercent={0.15}
-              onChooseFile={() =>
-                document.getElementById("fileInput").click()
-              }
+              onChooseFile={() => document.getElementById("fileInput").click()}
             />
 
             <TableOfThings
               backendUrl={BACKEND_URL}
+              docs={docsInTable} // Pass the table state with processing
               onSelect={(doc) => {
                 setMetaPath(doc.metaPath);
                 setSelectedDoc(doc);
               }}
-              onRefetch={(refetch) => {
-                tableRefetchRef.current = refetch;
-              }}
             />
 
             {metaPath && (
-              <MetadataEditor
-                metaPath={metaPath}
-                backendUrl={BACKEND_URL}
-                key={metaPath}
-              />
+              <MetadataEditor metaPath={metaPath} backendUrl={BACKEND_URL} key={metaPath} />
             )}
           </div>
 
           <div className="ocr-preview">
-            <div className="ocr-title">Extracted Text</div>
+            <div className="ocr-title">Text</div>
             <pre style={{ whiteSpace: "pre-wrap" }}>
               {loading ? "Processing…" : ocrText || "Drop PDF to start."}
             </pre>

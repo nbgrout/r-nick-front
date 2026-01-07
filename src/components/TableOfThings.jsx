@@ -1,83 +1,86 @@
 // TableOfThings.jsx
-import React, { useEffect, useState } from "react";
-import { useVault } from "../VaultContext.jsx";
+import React, { useState } from "react";
 
-export default function TableOfThings({ backendUrl, onSelect, onRefetch }) {
-  const [docs, setDocs] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const { listMetadataFiles, isReady } = useVault();
+export default function TableOfThings({ backendUrl, docs, onSelect }) {
+  const ITEMS_PER_PAGE = 10;
+  const [currentPage, setCurrentPage] = useState(0);
 
-  // Function to load metadata files
-  const fetchDocuments = async () => {
-    if (!isReady) {
-      setDocs([]);
-      return;
-    }
+  if (!docs || !docs.length) return <div>No documents in this folder yet.</div>;
 
-    setLoading(true);
-    try {
-      const files = await listMetadataFiles();
+  const pageCount = Math.ceil(docs.length / ITEMS_PER_PAGE);
 
-      const entries = files.map((name) => ({
-        id: name,
-        name: name.replace("_meta.json", ".pdf"),
-        status: "local",
-        metaPath: name,
-      }));
+  const currentDocs = docs.slice(
+    currentPage * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE + ITEMS_PER_PAGE
+  );
 
-      setDocs(entries);
-    } catch (err) {
-      console.error("Failed to list metadata files:", err);
-      setDocs([]);
-    } finally {
-      setLoading(false);
-    }
+  const goToPage = (pageIndex) => {
+    if (pageIndex < 0 || pageIndex >= pageCount) return;
+    setCurrentPage(pageIndex);
   };
 
-  // Provide the fetch function to parent via onRefetch
-  useEffect(() => {
-    if (typeof onRefetch === "function") {
-      onRefetch(fetchDocuments);
-    }
-  }, [onRefetch, fetchDocuments]);
-
-  // Initial load whenever vault becomes ready
-  useEffect(() => {
-    fetchDocuments();
-  }, [isReady]);
-
-  if (!isReady) return <div>Select a vault to view documents.</div>;
-  if (loading) return <div>Loading documents…</div>;
-  if (!docs.length) return <div>No documents in this folder yet.</div>;
-
   return (
-    <table style={{ width: "100%", marginTop: 12, borderCollapse: "collapse" }}>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {docs.map((doc) => (
-          <tr key={doc.id} style={{ borderBottom: "1px solid #ccc" }}>
-            <td>{doc.name}</td>
-            <td>{doc.status}</td>
-            <td>
-              <button onClick={() => onSelect(doc)}>Edit</button>
-              <a
-                href={`${backendUrl}/download/${encodeURIComponent(doc.name)}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ marginLeft: 6 }}
-              >
-                Open PDF
-              </a>
-            </td>
+    <div style={{ marginTop: 12 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Actions</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {currentDocs.map((doc) => (
+            <tr key={doc.id} style={{ borderBottom: "1px solid #ccc" }}>
+              <td>{doc.name}</td>
+              <td>{doc.status}</td>
+              <td>
+                <button onClick={() => onSelect(doc)}>Edit</button>
+                {doc.status === "local" && (
+                  <a
+                    href={`${backendUrl}/download/${encodeURIComponent(
+                      doc.name
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ marginLeft: 6 }}
+                  >
+                    Open PDF
+                  </a>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Pagination buttons */}
+      {pageCount > 1 && (
+        <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
+          <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 0}>
+            Prev
+          </button>
+          {Array.from({ length: pageCount }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => goToPage(i)}
+              style={{
+                fontWeight: i === currentPage ? "bold" : "normal",
+                textDecoration: i === currentPage ? "underline" : "none",
+              }}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === pageCount - 1}
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
+
