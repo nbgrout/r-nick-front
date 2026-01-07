@@ -1,45 +1,44 @@
 // TableOfThings.jsx
 import React, { useEffect, useState } from "react";
-import { useVault } from "../VaultContext.jsx"; // ✅ use VaultContext
+import { useVault } from "../VaultContext.jsx";
 
-export default function TableOfThings({ backendUrl, folderPath, onSelect }) {
+export default function TableOfThings({ backendUrl, onSelect }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const { vaultHandle, isReady } = useVault(); // get vaultHandle from context
-
-  const fetchDocuments = async () => {
-    setLoading(true);
-    try {
-      if (!isReady || !vaultHandle) {
-        setDocs([]);
-        return;
-      }
-
-      const entries = [];
-      for await (const [name, entry] of vaultHandle.entries()) {
-        if (entry.kind === "file" && name.endsWith("_meta.json")) {
-          entries.push({
-            id: name,
-            name: name.replace("_meta.json", ".pdf"),
-            status: "local",
-            metaPath: name,
-          });
-        }
-      }
-      setDocs(entries);
-    } catch (err) {
-      console.error(err);
-      setDocs([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { listMetadataFiles, isReady } = useVault();
 
   useEffect(() => {
-    fetchDocuments();
-  }, [vaultHandle]); // refetch whenever vaultHandle changes
+    if (!isReady) {
+      setDocs([]);
+      return;
+    }
 
+    const load = async () => {
+      setLoading(true);
+      try {
+        const files = await listMetadataFiles();
+
+        const entries = files.map((name) => ({
+          id: name,
+          name: name.replace("_meta.json", ".pdf"),
+          status: "local",
+          metaPath: name,
+        }));
+
+        setDocs(entries);
+      } catch (err) {
+        console.error("Failed to list metadata files:", err);
+        setDocs([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [isReady, listMetadataFiles]);
+
+  if (!isReady) return <div>Select a vault to view documents.</div>;
   if (loading) return <div>Loading documents…</div>;
   if (!docs.length) return <div>No documents in this folder yet.</div>;
 
