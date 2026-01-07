@@ -1,3 +1,4 @@
+// DocumentProcessor.jsx
 import React, { useState, useRef } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
@@ -15,6 +16,9 @@ export default function DocumentProcessor() {
 
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
+
+  // Table refresh reference
+  const tableRefetchRef = useRef(null);
 
   const handleChooseFolder = async () => {
     try {
@@ -42,12 +46,16 @@ export default function DocumentProcessor() {
       }
 
       const uploadData = await uploadRes.json();
-      const ocrText = uploadData.ocr_text;
-      setOcrText(ocrText);
+      const fullText = uploadData.ocr_text;
+      setOcrText(fullText);
+
+      // Save OCR text locally
+      const ocrFilename = file.name.replace(/\.pdf$/i, "_ocr.txt");
+      await writeFile(ocrFilename, fullText);
 
       // Extract metadata
       const metaForm = new FormData();
-      metaForm.append("text", ocrText);
+      metaForm.append("text", fullText);
 
       const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
         method: "POST",
@@ -61,12 +69,9 @@ export default function DocumentProcessor() {
       const metaJson = await metaRes.json();
       const metadata = metaJson.metadata;
 
-      // Write metadata locally (fail-fast if vault missing)
+      // Write metadata locally
       const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
-      await writeFile(
-        metaFilename,
-        JSON.stringify(metadata, null, 2)
-      );
+      await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
 
       setMetaPath(metaFilename);
       setSelectedDoc({
@@ -74,6 +79,11 @@ export default function DocumentProcessor() {
         metaPath: metaFilename,
         metadata,
       });
+
+      // Refresh the table automatically
+      if (tableRefetchRef.current) {
+        tableRefetchRef.current();
+      }
     } catch (err) {
       console.error(err);
       alert(err.message || "Error processing file");
@@ -101,7 +111,7 @@ export default function DocumentProcessor() {
       <div className="container">
         {/* Vault selection */}
         <div className="folder-input" style={{ marginBottom: 10 }}>
-          <label>Vault Folder (for PDFs and metadata):</label>
+          <label>Vault Folder (for PDFs, metadata, OCR):</label>
           <div style={{ display: "flex", gap: 6 }}>
             <input
               type="text"
@@ -110,9 +120,7 @@ export default function DocumentProcessor() {
               style={{ flex: 1 }}
               placeholder="No vault selected"
             />
-            <button onClick={handleChooseFolder}>
-              Choose Vault…
-            </button>
+            <button onClick={handleChooseFolder}>Choose Vault…</button>
           </div>
         </div>
 
@@ -135,10 +143,12 @@ export default function DocumentProcessor() {
 
             <TableOfThings
               backendUrl={BACKEND_URL}
-              folderPath={isReady ? "ready" : ""}
               onSelect={(doc) => {
                 setMetaPath(doc.metaPath);
                 setSelectedDoc(doc);
+              }}
+              onRefetch={(refetch) => {
+                tableRefetchRef.current = refetch;
               }}
             />
 
@@ -152,7 +162,7 @@ export default function DocumentProcessor() {
           </div>
 
           <div className="ocr-preview">
-            <div className="ocr-title">Text</div>
+            <div className="ocr-title">Extracted Text</div>
             <pre style={{ whiteSpace: "pre-wrap" }}>
               {loading ? "Processing…" : ocrText || "Drop PDF to start."}
             </pre>

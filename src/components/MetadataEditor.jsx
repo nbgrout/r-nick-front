@@ -1,7 +1,6 @@
-
 // MetadataEditor.jsx
-import React, { useState, useEffect } from "react";
-import { useVault } from "../VaultContext.jsx"; // ✅ Use VaultContext
+import React, { useState, useEffect, useRef } from "react";
+import { useVault } from "../VaultContext.jsx";
 
 export default function MetadataEditor({ metaPath, backendUrl }) {
   const { readFile, writeFile, isReady } = useVault();
@@ -10,7 +9,10 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Load metadata from vault when metaPath changes
+  const summaryRef = useRef(null);
+  const PORTAL_HEIGHT = 300; // match PortalScene height
+
+  // Load metadata when metaPath changes
   useEffect(() => {
     if (!metaPath) return;
 
@@ -31,6 +33,17 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
 
     loadMetadata();
   }, [metaPath, readFile, isReady]);
+
+  // Auto-expand summary textarea on content change
+  useEffect(() => {
+    if (summaryRef.current) {
+      summaryRef.current.style.height = "auto";
+      summaryRef.current.style.height = Math.min(
+        summaryRef.current.scrollHeight,
+        PORTAL_HEIGHT
+      ) + "px";
+    }
+  }, [metadata.summary]);
 
   const handleChange = (field, value) => {
     setMetadata((prev) => ({ ...prev, [field]: value }));
@@ -59,18 +72,51 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     <div className="metadata-editor" style={{ marginTop: 12 }}>
       <h3>Metadata Editor</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {Object.entries(metadata).map(([key, value]) => (
-          <div key={key} style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ fontWeight: "bold" }}>{key}</label>
-            <input
-              type="text"
-              value={value || ""}
-              onChange={(e) => handleChange(key, e.target.value)}
-              style={{ padding: 4, borderRadius: 4, border: "1px solid #ccc" }}
-            />
-          </div>
-        ))}
+        {Object.entries(metadata).map(([key, value]) => {
+          if (key === "summary") {
+            return (
+              <div key={key} style={{ display: "flex", flexDirection: "column" }}>
+                <label style={{ fontWeight: "bold" }}>{key}</label>
+                <textarea
+                  ref={summaryRef}
+                  value={value || ""}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                  style={{
+                    width: "100%",
+                    minHeight: 80,
+                    maxHeight: PORTAL_HEIGHT,
+                    overflowY: "auto",
+                    resize: "none",
+                    padding: 6,
+                    borderRadius: 4,
+                    border: "1px solid #ccc",
+                    fontSize: 14,
+                    lineHeight: "1.4em",
+                  }}
+                />
+              </div>
+            );
+          }
+
+          return (
+            <div key={key} style={{ display: "flex", flexDirection: "column" }}>
+              <label style={{ fontWeight: "bold" }}>{key}</label>
+              <input
+                type="text"
+                value={value || ""}
+                onChange={(e) => handleChange(key, e.target.value)}
+                style={{
+                  padding: 4,
+                  borderRadius: 4,
+                  border: "1px solid #ccc",
+                  fontSize: 14,
+                }}
+              />
+            </div>
+          );
+        })}
       </div>
+
       <button
         onClick={handleSave}
         disabled={saving || !isReady}
