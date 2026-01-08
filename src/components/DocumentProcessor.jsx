@@ -1,5 +1,5 @@
 // DocumentProcessor.jsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
@@ -13,10 +13,43 @@ export default function DocumentProcessor() {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [docsInTable, setDocsInTable] = useState([]); // Track all docs including processing
 
-  const { chooseVault, isReady, writeFile } = useVault();
+const { chooseVault, isReady, writeFile, listFiles, readFile } = useVault();
+
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
+useEffect(() => {
+    if (!isReady) return;
 
+    const loadVaultDocuments = async () => {
+      try {
+        const files = await listFiles();
+        const docs = [];
+
+        for (const file of files) {
+          if (!file.name.toLowerCase().endsWith("_meta.json")) continue;
+
+          const metaText = await readFile(file.name);
+          const metadata = JSON.parse(metaText);
+
+          docs.push({
+            id: file.name,
+            name:
+              metadata.filename ||
+              file.name.replace(/_meta\.json$/i, ".pdf"),
+            status: "local",
+            metaPath: file.name,
+            metadata,
+          });
+        }
+
+        setDocsInTable(docs);
+      } catch (err) {
+        console.error("Failed to load vault contents:", err);
+      }
+    };
+
+    loadVaultDocuments();
+  }, [isReady]);
   const handleChooseFolder = async () => {
     try {
       await chooseVault();
@@ -114,19 +147,19 @@ const handleFile = async (file) => {
       </header>
 
       <div className="container">
-        <div className="folder-input" style={{ marginBottom: 10 }}>
-          <label>Vault Folder (for PDFs and metadata):</label>
-          <div style={{ display: "flex", gap: 6 }}>
-            <input
-              type="text"
-              value={isReady ? "Vault selected" : ""}
-              readOnly
-              style={{ flex: 1 }}
-              placeholder="No vault selected"
-            />
-            <button onClick={handleChooseFolder}>Choose Vault…</button>
-          </div>
-        </div>
+<div className="folder-input" style={{ marginBottom: 10 }}>
+  <label>File / Folder (for documents and metadata):</label>
+  <div style={{ display: "flex", gap: 6 }}>
+    <input
+      type="text"
+      value={isReady ? "File / Folder selected" : ""}
+      readOnly
+      style={{ flex: 1 }}
+      placeholder="No file or folder selected"
+    />
+    <button onClick={handleChooseFolder}>Choose File / Folder…</button>
+  </div>
+</div>
 
         <div
           className="processor-grid"

@@ -26,17 +26,26 @@ export default function TableOfThings({ backendUrl, docs = [], onSelect }) {
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th align="left">Name</th>
-            <th align="left">Status</th>
-            <th align="left">Actions</th>
+            <th align="left" style={{ width: "55%" }}>Name</th>
+            <th align="left" style={{ width: "15%" }}>Status</th>
+            <th align="left" style={{ width: "30%" }}>Actions</th>
           </tr>
         </thead>
 
         <tbody>
           {currentDocs.map((doc) => (
             <tr key={doc.id} style={{ borderBottom: "1px solid #ccc" }}>
-              <td>
-                <strong>{doc.name}</strong>
+              <td
+                title={doc.name}
+                style={{
+                  maxWidth: 0,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  fontWeight: 600,
+                }}
+              >
+                {doc.name}
               </td>
 
               <td>{doc.status}</td>
@@ -81,9 +90,7 @@ export default function TableOfThings({ backendUrl, docs = [], onSelect }) {
             <button
               key={i}
               onClick={() => goToPage(i)}
-              style={{
-                fontWeight: i === currentPage ? "bold" : "normal",
-              }}
+              style={{ fontWeight: i === currentPage ? "bold" : "normal" }}
             >
               {i + 1}
             </button>
