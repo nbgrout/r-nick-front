@@ -73,7 +73,7 @@ const handleFile = async (file) => {
     // Step 4 — save metadata locally
     const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
     await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
-
+    metadata.filename = file.name; // add original PDF filename
     // Step 5 — update table row to "local"
     setDocsInTable((prev) =>
       prev.map((doc) =>
