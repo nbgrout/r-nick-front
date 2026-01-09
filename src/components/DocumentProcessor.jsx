@@ -1,4 +1,3 @@
-//DocumentProcessor
 import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
@@ -13,16 +12,16 @@ export default function DocumentProcessor() {
   const [loading, setLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [docsInTable, setDocsInTable] = useState([]);
+  const [fileUrl, setFileUrl] = useState(null);
 
   const { chooseVault, isReady, writeFile, listFiles, readFile } = useVault();
-
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
 
- const ocrTextByPage = ocrText
-  ? ocrText.split(/\n\n--- Page \d+ ---\n/)
-  : [];
-
+  // Split OCR text into pages, removing empty strings
+  const ocrTextByPage = ocrText
+    ? ocrText.split(/\n\n--- Page \d+ ---\n/).filter((p) => p.trim() !== "")
+    : [];
 
   // -----------------------------
   // LOAD EXISTING METADATA FILES
@@ -62,6 +61,9 @@ export default function DocumentProcessor() {
     loadVaultDocuments();
   }, [isReady]);
 
+  // -----------------------------
+  // HANDLE VAULT SELECTION
+  // -----------------------------
   const handleChooseFolder = async () => {
     try {
       await chooseVault();
@@ -71,7 +73,7 @@ export default function DocumentProcessor() {
   };
 
   // -----------------------------
-  // HANDLE PDF
+  // HANDLE PDF UPLOAD + OCR + META
   // -----------------------------
   const handleFile = async (file) => {
     if (!isReady) {
@@ -95,6 +97,10 @@ export default function DocumentProcessor() {
     setLoading(true);
 
     try {
+      // Convert File → Blob URL for PdfViewer
+      const url = URL.createObjectURL(file);
+      setFileUrl(url);
+
       // OCR
       const formData = new FormData();
       formData.append("file", file);
@@ -109,9 +115,7 @@ export default function DocumentProcessor() {
       const uploadData = await uploadRes.json();
       setOcrText(uploadData.ocr_text);
 
-      // -----------------------------
-      // ASYNC META CHANGE
-      // -----------------------------
+      // Metadata extraction
       const metaForm = new FormData();
       metaForm.append("text", uploadData.ocr_text);
 
@@ -122,28 +126,20 @@ export default function DocumentProcessor() {
 
       if (!metaRes.ok) throw new Error("Metadata extraction failed");
 
-const { metadata } = await metaRes.json();
+      const metaData = (await metaRes.json()).metadata;
+      const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
+      metaData.filename = file.name;
 
-const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
-metadata.filename = file.name;
+      await writeFile(metaFilename, JSON.stringify(metaData, null, 2));
 
-await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
-
-setDocsInTable((prev) =>
-  prev.map((doc) =>
-    doc.id === docId
-      ? {
-          ...doc,
-          metaPath: metaFilename,
-          metadata,
-          status: "local",
-        }
-      : doc
-  )
-);
-
-setMetaPath(metaFilename);
-
+      setDocsInTable((prev) =>
+        prev.map((doc) =>
+          doc.id === docId
+            ? { ...doc, status: "local", metaPath: metaFilename, metadata: metaData }
+            : doc
+        )
+      );
+      setMetaPath(metaFilename);
     } catch (err) {
       console.error(err);
       setDocsInTable((prev) =>
@@ -181,15 +177,19 @@ setMetaPath(metaFilename);
 
       setDocsInTable((prev) =>
         prev.map((d) =>
-          d.id === doc.id
-            ? { ...d, metadata, status: "local" }
-            : d
+          d.id === doc.id ? { ...d, metadata, status: "local" } : d
         )
       );
 
       setMetaPath(doc.metaPath);
+
+      // Also update OCR preview if available
+      if (doc.file) {
+        const url = URL.createObjectURL(doc.file);
+        setFileUrl(url);
+      }
     } catch {
-      // Metadata not ready yet — stay in processing
+      // Metadata not ready yet
     }
   };
 
@@ -210,9 +210,7 @@ setMetaPath(metaFilename);
               readOnly
               style={{ flex: 1 }}
             />
-            <button onClick={handleChooseFolder}>
-              Choose File / Folder…
-            </button>
+            <button onClick={handleChooseFolder}>Choose File / Folder…</button>
           </div>
         </div>
 
@@ -228,9 +226,7 @@ setMetaPath(metaFilename);
               manWidth={220}
               spinDuration={6}
               shiftManPercent={0.15}
-              onChooseFile={() =>
-                document.getElementById("fileInput").click()
-              }
+              onChooseFile={() => document.getElementById("fileInput").click()}
             />
 
             <TableOfThings
@@ -252,11 +248,8 @@ setMetaPath(metaFilename);
             <div className="ocr-title">Document Preview</div>
             {loading ? (
               <div>Processing…</div>
-            ) : selectedDoc && selectedDoc.file && ocrText ? (
-              <PdfViewer
-                file={selectedDoc.file}
-                ocrTextByPage={ocrTextByPage}
-              />
+            ) : selectedDoc && fileUrl && ocrTextByPage.length > 0 ? (
+              <PdfViewer file={fileUrl} ocrTextByPage={ocrTextByPage} />
             ) : (
               <div>Drop PDF to start.</div>
             )}
