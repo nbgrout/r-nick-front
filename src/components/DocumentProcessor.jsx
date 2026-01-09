@@ -1,3 +1,4 @@
+//DocumentProcessor
 import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
@@ -18,9 +19,10 @@ export default function DocumentProcessor() {
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
 
-  const ocrTextByPage = ocrText
-    ? ocrText.split(/\f|\n\n---PAGE BREAK---\n\n/)
-    : [];
+ const ocrTextByPage = ocrText
+  ? ocrText.split(/\n\n--- Page \d+ ---\n/)
+  : [];
+
 
   // -----------------------------
   // LOAD EXISTING METADATA FILES
@@ -120,15 +122,27 @@ export default function DocumentProcessor() {
 
       if (!metaRes.ok) throw new Error("Metadata extraction failed");
 
-      const { meta_path } = await metaRes.json();
+const { metadata } = await metaRes.json();
 
-      setDocsInTable((prev) =>
-        prev.map((doc) =>
-          doc.id === docId
-            ? { ...doc, metaPath: meta_path, status: "processing" }
-            : doc
-        )
-      );
+const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
+metadata.filename = file.name;
+
+await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
+
+setDocsInTable((prev) =>
+  prev.map((doc) =>
+    doc.id === docId
+      ? {
+          ...doc,
+          metaPath: metaFilename,
+          metadata,
+          status: "local",
+        }
+      : doc
+  )
+);
+
+setMetaPath(metaFilename);
 
     } catch (err) {
       console.error(err);
