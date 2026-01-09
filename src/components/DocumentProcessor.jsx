@@ -8,8 +8,7 @@ import PdfViewer from "./PdfViewer";
 
 export default function DocumentProcessor() {
   const [ocrText, setOcrText] = useState("");
-  const [metaPath, setMetaPath] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [ocrTextByPage, setOcrTextByPage] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [docsInTable, setDocsInTable] = useState([]);
   const [fileUrl, setFileUrl] = useState(null);
@@ -18,46 +17,39 @@ export default function DocumentProcessor() {
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
 
-  // Split OCR text into pages, removing empty strings
-  const ocrTextByPage = ocrText
-    ? ocrText.split(/\n\n--- Page \d+ ---\n/).filter((p) => p.trim() !== "")
-    : [];
-
   // -----------------------------
   // LOAD EXISTING METADATA FILES
   // -----------------------------
-  useEffect(() => {
+  const loadVaultDocuments = async () => {
     if (!isReady) return;
 
-    const loadVaultDocuments = async () => {
-      try {
-        const files = await listFiles();
-        const docs = [];
+    try {
+      const files = await listFiles();
+      const docs = [];
 
-        for (const file of files) {
-          if (!file.name.toLowerCase().endsWith("_meta.json")) continue;
+      for (const file of files) {
+        if (!file.name.toLowerCase().endsWith("_meta.json")) continue;
 
-          const metaText = await readFile(file.name);
-          const metadata = JSON.parse(metaText);
+        const metaText = await readFile(file.name);
+        const metadata = JSON.parse(metaText);
 
-          docs.push({
-            id: file.name,
-            name:
-              metadata.filename ||
-              file.name.replace(/_meta\.json$/i, ".pdf"),
-            status: "local",
-            metaPath: file.name,
-            metadata,
-            file: null,
-          });
-        }
-
-        setDocsInTable(docs);
-      } catch (err) {
-        console.error("Failed to load vault contents:", err);
+        docs.push({
+          id: file.name,
+          name: metadata.filename || file.name.replace(/_meta\.json$/i, ".pdf"),
+          status: "ready",
+          metaPath: file.name,
+          metadata,
+          file: null,
+        });
       }
-    };
 
+      setDocsInTable(docs);
+    } catch (err) {
+      console.error("Failed to load vault contents:", err);
+    }
+  };
+
+  useEffect(() => {
     loadVaultDocuments();
   }, [isReady]);
 
@@ -67,13 +59,14 @@ export default function DocumentProcessor() {
   const handleChooseFolder = async () => {
     try {
       await chooseVault();
+      loadVaultDocuments();
     } catch (err) {
       alert(err.message || "Vault selection failed");
     }
   };
 
   // -----------------------------
-  // HANDLE PDF UPLOAD + OCR + META
+  // HANDLE PDF UPLOAD
   // -----------------------------
   const handleFile = async (file) => {
     if (!isReady) {
@@ -83,25 +76,43 @@ export default function DocumentProcessor() {
 
     const docId = file.name + "-" + Date.now();
 
+    const placeholderMetadata = {
+      summary: "(processing)",
+      author: "(processing)",
+      individuals: "(processing)",
+      date_authored: "(processing)",
+      earliest_date: "(processing)",
+      latest_date: "(processing)",
+      num_visits: "(processing)",
+      diagnoses: "(processing)",
+      doc_type: "(processing)",
+      audience: "(processing)",
+      total_medical_cost: "(processing)",
+    };
+
+    // Optimistic UI entry
     const newDoc = {
       id: docId,
       name: file.name,
-      status: "processing",
+      status: "digitizing", // OCR running
       metaPath: null,
-      metadata: null,
+      metadata: placeholderMetadata,
       file,
     };
 
     setDocsInTable((prev) => [...prev, newDoc]);
     setSelectedDoc(newDoc);
-    setLoading(true);
+
+    // Show PDF immediately
+    const url = URL.createObjectURL(file);
+    setFileUrl(url);
+    setOcrText("");
+    setOcrTextByPage([]);
 
     try {
-      // Convert File → Blob URL for PdfViewer
-      const url = URL.createObjectURL(file);
-      setFileUrl(url);
-
+      // -----------------------------
       // OCR
+      // -----------------------------
       const formData = new FormData();
       formData.append("file", file);
 
@@ -109,15 +120,25 @@ export default function DocumentProcessor() {
         method: "POST",
         body: formData,
       });
-
       if (!uploadRes.ok) throw new Error("OCR upload failed");
 
-      const uploadData = await uploadRes.json();
-      setOcrText(uploadData.ocr_text);
+      const { ocr_text } = await uploadRes.json();
+      setOcrText(ocr_text);
 
+      const pages = ocr_text
+        .split(/\n\n--- Page \d+ ---\n/)
+        .filter((p) => p.trim() !== "");
+      setOcrTextByPage(pages);
+
+      // -----------------------------
       // Metadata extraction
+      // -----------------------------
+      setDocsInTable((prev) =>
+        prev.map((doc) => (doc.id === docId ? { ...doc, status: "briefing" } : doc))
+      );
+
       const metaForm = new FormData();
-      metaForm.append("text", uploadData.ocr_text);
+      metaForm.append("text", ocr_text);
 
       const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
         method: "POST",
@@ -126,68 +147,56 @@ export default function DocumentProcessor() {
 
       if (!metaRes.ok) throw new Error("Metadata extraction failed");
 
-      const metaData = (await metaRes.json()).metadata;
+      const { metadata } = await metaRes.json();
       const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
-      metaData.filename = file.name;
+      metadata.filename = file.name;
 
-      await writeFile(metaFilename, JSON.stringify(metaData, null, 2));
+      await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
 
       setDocsInTable((prev) =>
         prev.map((doc) =>
           doc.id === docId
-            ? { ...doc, status: "local", metaPath: metaFilename, metadata: metaData }
+            ? { ...doc, status: "done", metaPath: metaFilename, metadata }
             : doc
         )
       );
-      setMetaPath(metaFilename);
+
+      setSelectedDoc((prev) =>
+        prev && prev.id === docId ? { ...prev, status: "done", metadata, metaPath: metaFilename } : prev
+      );
     } catch (err) {
       console.error(err);
       setDocsInTable((prev) =>
-        prev.map((doc) =>
-          doc.id === docId ? { ...doc, status: "error" } : doc
-        )
+        prev.map((doc) => (doc.id === docId ? { ...doc, status: "error" } : doc))
       );
       alert(err.message || "Error processing file");
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    if (e.dataTransfer.files.length) {
-      handleFile(e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
   };
 
   const handleDragOver = (e) => e.preventDefault();
 
-  // -----------------------------
-  // LOAD METADATA ON SELECTION
-  // -----------------------------
   const handleSelectDoc = async (doc) => {
     setSelectedDoc(doc);
-    setMetaPath(null);
 
     if (!doc.metaPath) return;
 
     try {
-      const metaText = await readFile(doc.metaPath);
-      const metadata = JSON.parse(metaText);
+      const text = await readFile(doc.metaPath);
+      const metadata = JSON.parse(text);
 
       setDocsInTable((prev) =>
         prev.map((d) =>
-          d.id === doc.id ? { ...d, metadata, status: "local" } : d
+          d.id === doc.id ? { ...d, metadata, status: "ready" } : d
         )
       );
 
-      setMetaPath(doc.metaPath);
-
-      // Also update OCR preview if available
-      if (doc.file) {
-        const url = URL.createObjectURL(doc.file);
-        setFileUrl(url);
-      }
+      // Show PDF preview if file exists
+      if (doc.file) setFileUrl(URL.createObjectURL(doc.file));
     } catch {
       // Metadata not ready yet
     }
@@ -235,20 +244,21 @@ export default function DocumentProcessor() {
               onSelect={handleSelectDoc}
             />
 
-            {metaPath && (
+            {selectedDoc && (
               <MetadataEditor
-                metaPath={metaPath}
+                metadata={selectedDoc.metadata}
+                metaPath={selectedDoc.metaPath}
+                status={selectedDoc.status}
                 backendUrl={BACKEND_URL}
-                key={metaPath}
+                fileName={selectedDoc.name}
+                key={selectedDoc.id}
               />
             )}
           </div>
 
           <div className="ocr-preview">
             <div className="ocr-title">Document Preview</div>
-            {loading ? (
-              <div>Processing…</div>
-            ) : selectedDoc && fileUrl && ocrTextByPage.length > 0 ? (
+            {selectedDoc && fileUrl ? (
               <PdfViewer file={fileUrl} ocrTextByPage={ocrTextByPage} />
             ) : (
               <div>Drop PDF to start.</div>
@@ -261,9 +271,7 @@ export default function DocumentProcessor() {
           id="fileInput"
           accept="application/pdf"
           style={{ display: "none" }}
-          onChange={(e) =>
-            e.target.files.length && handleFile(e.target.files[0])
-          }
+          onChange={(e) => e.target.files.length && handleFile(e.target.files[0])}
         />
       </div>
     </>

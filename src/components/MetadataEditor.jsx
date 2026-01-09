@@ -1,40 +1,17 @@
-// MetadataEditor.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useVault } from "../VaultContext.jsx";
 
-export default function MetadataEditor({ metaPath, backendUrl }) {
-  const { readFile, writeFile, isReady } = useVault();
-
-  const [metadata, setMetadata] = useState({});
-  const [loading, setLoading] = useState(true);
+export default function MetadataEditor({ metadata: initialMetadata, metaPath, status, backendUrl, fileName }) {
+  const { writeFile, isReady } = useVault();
+  const [metadata, setMetadata] = useState(initialMetadata || {});
   const [saving, setSaving] = useState(false);
-
   const summaryRef = useRef(null);
-  const PORTAL_HEIGHT = 300; // match PortalScene height
+  const PORTAL_HEIGHT = 300;
 
-  // Load metadata when metaPath changes
   useEffect(() => {
-    if (!metaPath) return;
+    setMetadata(initialMetadata || {});
+  }, [initialMetadata]);
 
-    const loadMetadata = async () => {
-      setLoading(true);
-      try {
-        if (!isReady) throw new Error("Vault not selected");
-
-        const text = await readFile(metaPath);
-        setMetadata(JSON.parse(text));
-      } catch (err) {
-        console.error("Failed to load metadata:", err);
-        setMetadata({});
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadMetadata();
-  }, [metaPath, readFile, isReady]);
-
-  // Auto-expand summary textarea on content change
   useEffect(() => {
     if (summaryRef.current) {
       summaryRef.current.style.height = "auto";
@@ -54,7 +31,6 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     setSaving(true);
     try {
       if (!isReady) throw new Error("Vault not selected");
-
       await writeFile(metaPath, JSON.stringify(metadata, null, 2));
       alert("Metadata saved successfully.");
     } catch (err) {
@@ -65,12 +41,11 @@ export default function MetadataEditor({ metaPath, backendUrl }) {
     }
   };
 
-  if (loading) return <div>Loading metadata…</div>;
-  if (!Object.keys(metadata).length) return <div>No metadata available.</div>;
+  if (!metadata) return <div>Loading metadata…</div>;
 
   return (
     <div className="metadata-editor" style={{ marginTop: 12 }}>
-      <h3>Metadata Editor</h3>
+      <h3>Metadata Editor ({status})</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {Object.entries(metadata).map(([key, value]) => {
           if (key === "summary") {
