@@ -2,44 +2,45 @@ import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
+import PdfViewer from "./PdfViewer";
 import logoSrc from "../assets/Logo.png";
 import { useVault } from "../VaultContext";
-import PdfViewer from "./PdfViewer";
 
 export default function DocumentProcessor() {
-  const [ocrText, setOcrText] = useState("");
-  const [ocrTextByPage, setOcrTextByPage] = useState([]);
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const [docsInTable, setDocsInTable] = useState([]);
-  const [fileUrl, setFileUrl] = useState(null);
-
-  const { chooseVault, isReady, writeFile, listFiles, readFile } = useVault();
+  const { chooseVault, isReady, listFiles, readFile, writeFile } = useVault();
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
 
+  const [docsInTable, setDocsInTable] = useState([]);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [ocrTextByDoc, setOcrTextByDoc] = useState({});
+  const [metaDataByDoc, setMetaDataByDoc] = useState({});
+  const [loadingDocs, setLoadingDocs] = useState({}); // { docId: boolean }
+
   // -----------------------------
-  // LOAD EXISTING METADATA FILES
+  // Load existing vault metadata on vault selection
   // -----------------------------
   const loadVaultDocuments = async () => {
     if (!isReady) return;
-
     try {
       const files = await listFiles();
       const docs = [];
 
       for (const file of files) {
         if (!file.name.toLowerCase().endsWith("_meta.json")) continue;
-
         const metaText = await readFile(file.name);
         const metadata = JSON.parse(metaText);
 
+        const pdfName =
+          metadata.filename || file.name.replace(/_meta\.json$/i, ".pdf");
+
         docs.push({
           id: file.name,
-          name: metadata.filename || file.name.replace(/_meta\.json$/i, ".pdf"),
+          name: pdfName,
           status: "ready",
           metaPath: file.name,
           metadata,
-          file: null,
+          file: null, // will populate when user selects
         });
       }
 
@@ -53,9 +54,6 @@ export default function DocumentProcessor() {
     loadVaultDocuments();
   }, [isReady]);
 
-  // -----------------------------
-  // HANDLE VAULT SELECTION
-  // -----------------------------
   const handleChooseFolder = async () => {
     try {
       await chooseVault();
@@ -66,7 +64,7 @@ export default function DocumentProcessor() {
   };
 
   // -----------------------------
-  // HANDLE PDF UPLOAD
+  // Handle PDF upload + OCR + metadata
   // -----------------------------
   const handleFile = async (file) => {
     if (!isReady) {
@@ -75,44 +73,23 @@ export default function DocumentProcessor() {
     }
 
     const docId = file.name + "-" + Date.now();
-
-    const placeholderMetadata = {
-      summary: "(processing)",
-      author: "(processing)",
-      individuals: "(processing)",
-      date_authored: "(processing)",
-      earliest_date: "(processing)",
-      latest_date: "(processing)",
-      num_visits: "(processing)",
-      diagnoses: "(processing)",
-      doc_type: "(processing)",
-      audience: "(processing)",
-      total_medical_cost: "(processing)",
-    };
-
-    // Optimistic UI entry
     const newDoc = {
       id: docId,
       name: file.name,
-      status: "digitizing", // OCR running
+      status: "digitizing",
       metaPath: null,
-      metadata: placeholderMetadata,
+      metadata: {}, // empty initially
       file,
     };
 
     setDocsInTable((prev) => [...prev, newDoc]);
     setSelectedDoc(newDoc);
-
-    // Show PDF immediately
-    const url = URL.createObjectURL(file);
-    setFileUrl(url);
-    setOcrText("");
-    setOcrTextByPage([]);
+    setOcrTextByDoc((prev) => ({ ...prev, [docId]: "" }));
+    setMetaDataByDoc((prev) => ({ ...prev, [docId]: { status: "processing" } }));
+    setLoadingDocs((prev) => ({ ...prev, [docId]: true }));
 
     try {
-      // -----------------------------
-      // OCR
-      // -----------------------------
+      // 1️⃣ OCR
       const formData = new FormData();
       formData.append("file", file);
 
@@ -122,54 +99,42 @@ export default function DocumentProcessor() {
       });
       if (!uploadRes.ok) throw new Error("OCR upload failed");
 
-      const { ocr_text } = await uploadRes.json();
-      setOcrText(ocr_text);
+      const uploadData = await uploadRes.json();
+      setOcrTextByDoc((prev) => ({ ...prev, [docId]: uploadData.ocr_text }));
 
-      const pages = ocr_text
-        .split(/\n\n--- Page \d+ ---\n/)
-        .filter((p) => p.trim() !== "");
-      setOcrTextByPage(pages);
-
-      // -----------------------------
-      // Metadata extraction
-      // -----------------------------
-      setDocsInTable((prev) =>
-        prev.map((doc) => (doc.id === docId ? { ...doc, status: "briefing" } : doc))
-      );
-
+      // 2️⃣ Metadata extraction (async, can take time)
       const metaForm = new FormData();
-      metaForm.append("text", ocr_text);
+      metaForm.append("text", uploadData.ocr_text);
 
       const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
         method: "POST",
         body: metaForm,
       });
-
       if (!metaRes.ok) throw new Error("Metadata extraction failed");
 
-      const { metadata } = await metaRes.json();
+      const metaData = (await metaRes.json()).metadata;
       const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
-      metadata.filename = file.name;
+      metaData.filename = file.name;
 
-      await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
+      await writeFile(metaFilename, JSON.stringify(metaData, null, 2));
 
       setDocsInTable((prev) =>
         prev.map((doc) =>
           doc.id === docId
-            ? { ...doc, status: "done", metaPath: metaFilename, metadata }
+            ? { ...doc, status: "done", metaPath: metaFilename, metadata: metaData }
             : doc
         )
       );
 
-      setSelectedDoc((prev) =>
-        prev && prev.id === docId ? { ...prev, status: "done", metadata, metaPath: metaFilename } : prev
-      );
+      setMetaDataByDoc((prev) => ({ ...prev, [docId]: metaData }));
     } catch (err) {
       console.error(err);
       setDocsInTable((prev) =>
         prev.map((doc) => (doc.id === docId ? { ...doc, status: "error" } : doc))
       );
       alert(err.message || "Error processing file");
+    } finally {
+      setLoadingDocs((prev) => ({ ...prev, [docId]: false }));
     }
   };
 
@@ -180,25 +145,27 @@ export default function DocumentProcessor() {
 
   const handleDragOver = (e) => e.preventDefault();
 
+  // -----------------------------
+  // Handle selecting a document
+  // -----------------------------
   const handleSelectDoc = async (doc) => {
     setSelectedDoc(doc);
 
-    if (!doc.metaPath) return;
+    // Load metadata immediately if available
+    if (doc.metaPath) {
+      try {
+        const text = await readFile(doc.metaPath);
+        const metadata = JSON.parse(text);
+        setMetaDataByDoc((prev) => ({ ...prev, [doc.id]: metadata }));
+      } catch {
+        setMetaDataByDoc((prev) => ({ ...prev, [doc.id]: { status: "processing" } }));
+      }
+    }
 
-    try {
-      const text = await readFile(doc.metaPath);
-      const metadata = JSON.parse(text);
-
-      setDocsInTable((prev) =>
-        prev.map((d) =>
-          d.id === doc.id ? { ...d, metadata, status: "ready" } : d
-        )
-      );
-
-      // Show PDF preview if file exists
-      if (doc.file) setFileUrl(URL.createObjectURL(doc.file));
-    } catch {
-      // Metadata not ready yet
+    // Load OCR preview if File object is available
+    if (!doc.file && doc.metaPath) {
+      // optionally allow users to select PDF to attach File object
+      // for now, can't load blob, PDF only displays for new uploads
     }
   };
 
@@ -246,20 +213,26 @@ export default function DocumentProcessor() {
 
             {selectedDoc && (
               <MetadataEditor
-                metadata={selectedDoc.metadata}
                 metaPath={selectedDoc.metaPath}
-                status={selectedDoc.status}
                 backendUrl={BACKEND_URL}
-                fileName={selectedDoc.name}
-                key={selectedDoc.id}
+                metadataOverride={metaDataByDoc[selectedDoc.id]}
+                loading={loadingDocs[selectedDoc.id]}
               />
             )}
           </div>
 
           <div className="ocr-preview">
             <div className="ocr-title">Document Preview</div>
-            {selectedDoc && fileUrl ? (
-              <PdfViewer file={fileUrl} ocrTextByPage={ocrTextByPage} />
+            {selectedDoc && selectedDoc.file ? (
+              <PdfViewer
+                file={selectedDoc.file}
+                ocrTextByPage={
+                  ocrTextByDoc[selectedDoc.id]
+                    ? ocrTextByDoc[selectedDoc.id].split(/\n\n--- Page \d+ ---\n/)
+                        .filter((p) => p.trim() !== "")
+                    : []
+                }
+              />
             ) : (
               <div>Drop PDF to start.</div>
             )}
@@ -271,7 +244,9 @@ export default function DocumentProcessor() {
           id="fileInput"
           accept="application/pdf"
           style={{ display: "none" }}
-          onChange={(e) => e.target.files.length && handleFile(e.target.files[0])}
+          onChange={(e) =>
+            e.target.files.length && handleFile(e.target.files[0])
+          }
         />
       </div>
     </>
