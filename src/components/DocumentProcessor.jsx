@@ -1,4 +1,3 @@
-// DocumentProcessor.jsx
 import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
@@ -19,12 +18,13 @@ export default function DocumentProcessor() {
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
 
-  // Split OCR text into pages (simple heuristic)
   const ocrTextByPage = ocrText
     ? ocrText.split(/\f|\n\n---PAGE BREAK---\n\n/)
     : [];
 
-  // Load existing vault metadata on vault selection
+  // -----------------------------
+  // LOAD EXISTING METADATA FILES
+  // -----------------------------
   useEffect(() => {
     if (!isReady) return;
 
@@ -47,7 +47,7 @@ export default function DocumentProcessor() {
             status: "local",
             metaPath: file.name,
             metadata,
-            file: null, // existing vault docs don’t have File objects
+            file: null,
           });
         }
 
@@ -64,23 +64,28 @@ export default function DocumentProcessor() {
     try {
       await chooseVault();
     } catch (err) {
-      console.error("Vault selection failed:", err);
       alert(err.message || "Vault selection failed");
     }
   };
 
+  // -----------------------------
+  // HANDLE PDF
+  // -----------------------------
   const handleFile = async (file) => {
     if (!isReady) {
       alert("Please select a vault first");
       return;
     }
 
+    const docId = file.name + "-" + Date.now();
+
     const newDoc = {
-      id: file.name + "-" + Date.now(),
+      id: docId,
       name: file.name,
       status: "processing",
       metaPath: null,
-      file, // ✅ store File object for PdfViewer
+      metadata: null,
+      file,
     };
 
     setDocsInTable((prev) => [...prev, newDoc]);
@@ -102,7 +107,9 @@ export default function DocumentProcessor() {
       const uploadData = await uploadRes.json();
       setOcrText(uploadData.ocr_text);
 
-      // Metadata extraction
+      // -----------------------------
+      // ASYNC META CHANGE
+      // -----------------------------
       const metaForm = new FormData();
       metaForm.append("text", uploadData.ocr_text);
 
@@ -113,34 +120,21 @@ export default function DocumentProcessor() {
 
       if (!metaRes.ok) throw new Error("Metadata extraction failed");
 
-      const metadata = (await metaRes.json()).metadata;
+      const { meta_path } = await metaRes.json();
 
-      // Save metadata locally
-      const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
-      metadata.filename = file.name;
-
-      await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
-
-      // Update table row
       setDocsInTable((prev) =>
         prev.map((doc) =>
-          doc.id === newDoc.id
-            ? {
-                ...doc,
-                status: "local",
-                metaPath: metaFilename,
-                metadata,
-              }
+          doc.id === docId
+            ? { ...doc, metaPath: meta_path, status: "processing" }
             : doc
         )
       );
 
-      setMetaPath(metaFilename);
     } catch (err) {
       console.error(err);
       setDocsInTable((prev) =>
         prev.map((doc) =>
-          doc.id === newDoc.id ? { ...doc, status: "error" } : doc
+          doc.id === docId ? { ...doc, status: "error" } : doc
         )
       );
       alert(err.message || "Error processing file");
@@ -158,6 +152,33 @@ export default function DocumentProcessor() {
 
   const handleDragOver = (e) => e.preventDefault();
 
+  // -----------------------------
+  // LOAD METADATA ON SELECTION
+  // -----------------------------
+  const handleSelectDoc = async (doc) => {
+    setSelectedDoc(doc);
+    setMetaPath(null);
+
+    if (!doc.metaPath) return;
+
+    try {
+      const metaText = await readFile(doc.metaPath);
+      const metadata = JSON.parse(metaText);
+
+      setDocsInTable((prev) =>
+        prev.map((d) =>
+          d.id === doc.id
+            ? { ...d, metadata, status: "local" }
+            : d
+        )
+      );
+
+      setMetaPath(doc.metaPath);
+    } catch {
+      // Metadata not ready yet — stay in processing
+    }
+  };
+
   return (
     <>
       <header className="app-header">
@@ -167,14 +188,13 @@ export default function DocumentProcessor() {
 
       <div className="container">
         <div className="folder-input" style={{ marginBottom: 10 }}>
-          <label>File / Folder (for documents and metadata):</label>
+          <label>File / Folder:</label>
           <div style={{ display: "flex", gap: 6 }}>
             <input
               type="text"
               value={isReady ? "File / Folder selected" : ""}
               readOnly
               style={{ flex: 1 }}
-              placeholder="No file or folder selected"
             />
             <button onClick={handleChooseFolder}>
               Choose File / Folder…
@@ -202,10 +222,7 @@ export default function DocumentProcessor() {
             <TableOfThings
               backendUrl={BACKEND_URL}
               docs={docsInTable}
-              onSelect={(doc) => {
-                setMetaPath(doc.metaPath);
-                setSelectedDoc(doc);
-              }}
+              onSelect={handleSelectDoc}
             />
 
             {metaPath && (
