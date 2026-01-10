@@ -1,3 +1,4 @@
+//DocumentProcessor.jsx
 import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
@@ -77,18 +78,13 @@ export default function DocumentProcessor() {
     const docId = file.name + "-" + Date.now();
 
     const placeholderMetadata = {
-      summary: "(processing)",
-      author: "(processing)",
-      individuals: "(processing)",
-      date_authored: "(processing)",
-      earliest_date: "(processing)",
-      latest_date: "(processing)",
-      num_visits: "(processing)",
-      diagnoses: "(processing)",
-      doc_type: "(processing)",
-      audience: "(processing)",
-      total_medical_cost: "(processing)",
-    };
+  brief_description: "(processing)",
+  document_type: "(processing)",
+  document_role: "(processing)",
+  critical_facts: [],
+  financial_items: [],
+  tags: []
+};
 
     // Optimistic UI entry
     const newDoc = {
@@ -139,6 +135,7 @@ export default function DocumentProcessor() {
 
       const metaForm = new FormData();
       metaForm.append("text", ocr_text);
+metaForm.append("original_filename", file.name);
 
       const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
         method: "POST",

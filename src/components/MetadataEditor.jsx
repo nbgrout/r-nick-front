@@ -1,108 +1,78 @@
+//MetadataEditor.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useVault } from "../VaultContext.jsx";
 
-export default function MetadataEditor({ metadata: initialMetadata, metaPath, status, backendUrl, fileName }) {
+export default function MetadataEditor({ metadata, metaPath, status }) {
   const { writeFile, isReady } = useVault();
-  const [metadata, setMetadata] = useState(initialMetadata || {});
-  const [saving, setSaving] = useState(false);
-  const summaryRef = useRef(null);
-  const PORTAL_HEIGHT = 300;
+  const [localMeta, setLocalMeta] = useState(metadata);
 
-  useEffect(() => {
-    setMetadata(initialMetadata || {});
-  }, [initialMetadata]);
+  useEffect(() => setLocalMeta(metadata), [metadata]);
 
-  useEffect(() => {
-    if (summaryRef.current) {
-      summaryRef.current.style.height = "auto";
-      summaryRef.current.style.height = Math.min(
-        summaryRef.current.scrollHeight,
-        PORTAL_HEIGHT
-      ) + "px";
-    }
-  }, [metadata.summary]);
-
-  const handleChange = (field, value) => {
-    setMetadata((prev) => ({ ...prev, [field]: value }));
+  const save = async () => {
+    await writeFile(metaPath, JSON.stringify(localMeta, null, 2));
+    alert("Saved");
   };
 
-  const handleSave = async () => {
-    if (!metaPath) return;
-    setSaving(true);
-    try {
-      if (!isReady) throw new Error("Vault not selected");
-      await writeFile(metaPath, JSON.stringify(metadata, null, 2));
-      alert("Metadata saved successfully.");
-    } catch (err) {
-      console.error("Failed to save metadata:", err);
-      alert(err.message || "Failed to save metadata");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!metadata) return <div>Loading metadata…</div>;
+  if (!localMeta) return null;
 
   return (
-    <div className="metadata-editor" style={{ marginTop: 12 }}>
-      <h3>Metadata Editor ({status})</h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {Object.entries(metadata).map(([key, value]) => {
-          if (key === "summary") {
-            return (
-              <div key={key} style={{ display: "flex", flexDirection: "column" }}>
-                <label style={{ fontWeight: "bold" }}>{key}</label>
-                <textarea
-                  ref={summaryRef}
-                  value={value || ""}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                  style={{
-                    width: "100%",
-                    minHeight: 80,
-                    maxHeight: PORTAL_HEIGHT,
-                    overflowY: "auto",
-                    resize: "none",
-                    padding: 6,
-                    borderRadius: 4,
-                    border: "1px solid #ccc",
-                    fontSize: 14,
-                    lineHeight: "1.4em",
-                  }}
-                />
-              </div>
-            );
+    <div>
+      <h3>Document Brief</h3>
+
+      <section>
+        <h4>Context</h4>
+        <input
+          value={localMeta.document_type || ""}
+          onChange={(e) =>
+            setLocalMeta({ ...localMeta, document_type: e.target.value })
           }
+        />
+        <input
+          value={localMeta.document_role || ""}
+          onChange={(e) =>
+            setLocalMeta({ ...localMeta, document_role: e.target.value })
+          }
+        />
+      </section>
 
-          return (
-            <div key={key} style={{ display: "flex", flexDirection: "column" }}>
-              <label style={{ fontWeight: "bold" }}>{key}</label>
-              <input
-                type="text"
-                value={value || ""}
-                onChange={(e) => handleChange(key, e.target.value)}
-                style={{
-                  padding: 4,
-                  borderRadius: 4,
-                  border: "1px solid #ccc",
-                  fontSize: 14,
-                }}
-              />
-            </div>
-          );
-        })}
-      </div>
+      <section>
+        <h4>Summary</h4>
+        <textarea
+          value={localMeta.brief_description || ""}
+          onChange={(e) =>
+            setLocalMeta({ ...localMeta, brief_description: e.target.value })
+          }
+        />
+      </section>
 
-      <button
-        onClick={handleSave}
-        disabled={saving || !isReady}
-        style={{
-          marginTop: 12,
-          padding: "6px 12px",
-          borderRadius: 4,
-          cursor: "pointer",
-        }}
-      >
-        {saving ? "Saving…" : "Save"}
+      <section>
+        <h4>Critical Facts</h4>
+        {(localMeta.critical_facts || []).map((fact, i) => (
+          <div key={i}>
+            <input
+              value={fact.object}
+              onChange={(e) => {
+                const facts = [...localMeta.critical_facts];
+                facts[i].object = e.target.value;
+                setLocalMeta({ ...localMeta, critical_facts: facts });
+              }}
+            />
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h4>Financial Items</h4>
+        {(localMeta.financial_items || []).map((f, i) => (
+          <div key={i}>
+            <input value={f.amount} readOnly />
+            <span>{f.type}</span>
+          </div>
+        ))}
+      </section>
+
+      <button onClick={save} disabled={!isReady}>
+        Save Metadata
       </button>
     </div>
   );
