@@ -17,6 +17,7 @@ export default function TableOfThings({ docs = [], onSelect }) {
           <th>Tags</th>
         </tr>
       </thead>
+
       <tbody>
         {docs.map((doc) => {
           const meta = doc.metadata || {};
@@ -32,11 +33,11 @@ export default function TableOfThings({ docs = [], onSelect }) {
               style={{ cursor: "pointer", borderBottom: "1px solid #ddd" }}
             >
               <td>{meta.bates_name || "—"}</td>
-              <td>{meta.document_type || "—"}</td>
+              <td>{meta.document_type}</td>
               <td title={meta.brief_description}>
-                {meta.brief_description || "—"}
+                {meta.brief_description}
               </td>
-              <td>{meta.date_document_written || "—"}</td>
+              <td>{meta.date_document_written}</td>
               <td>
                 {totalAmount > 0 ? `$${totalAmount.toFixed(2)}` : "—"}
               </td>

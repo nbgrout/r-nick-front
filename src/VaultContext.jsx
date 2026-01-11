@@ -1,6 +1,8 @@
-// VaultContext.jsx
-// Single authoritative owner of the FileSystemDirectoryHandle
-// Handles recursive scanning + JSON loading
+/**
+ * VaultContext.jsx
+ * Single authoritative owner of the FileSystemDirectoryHandle
+ * Handles recursive scanning + JSON loading
+ */
 
 import React, { createContext, useContext, useState } from "react";
 
@@ -19,6 +21,7 @@ export function VaultProvider({ children }) {
 
     const handle = await window.showDirectoryPicker({ mode: "readwrite" });
     const perm = await handle.requestPermission({ mode: "readwrite" });
+
     if (perm !== "granted") {
       throw new Error("Vault permission not granted");
     }
@@ -48,8 +51,8 @@ export function VaultProvider({ children }) {
   async function readFileAtPath(path) {
     const vault = ensureVault();
     const parts = path.split("/").filter(Boolean);
-    let dir = vault;
 
+    let dir = vault;
     for (let i = 0; i < parts.length - 1; i++) {
       dir = await dir.getDirectoryHandle(parts[i]);
     }
@@ -61,8 +64,8 @@ export function VaultProvider({ children }) {
   async function writeFileAtPath(path, contents) {
     const vault = ensureVault();
     const parts = path.split("/").filter(Boolean);
-    let dir = vault;
 
+    let dir = vault;
     for (let i = 0; i < parts.length - 1; i++) {
       dir = await dir.getDirectoryHandle(parts[i], { create: true });
     }
@@ -85,7 +88,6 @@ export function VaultProvider({ children }) {
       if (entry.kind === "file") {
         results.push({ kind: "file", name, path, handle: entry });
       } else if (entry.kind === "directory") {
-        results.push({ kind: "directory", name, path, handle: entry });
         const nested = await walkDirectory(entry, path);
         results.push(...nested);
       }
@@ -111,6 +113,7 @@ export function VaultProvider({ children }) {
   async function loadAllMetadata() {
     const vault = ensureVault();
     const entries = await walkDirectory(vault);
+
     const docs = [];
 
     for (const e of entries) {
@@ -118,8 +121,8 @@ export function VaultProvider({ children }) {
         try {
           const meta = await readJsonFile(e.handle);
           docs.push({
-            id: meta.bates_name || crypto.randomUUID(),
-            metaPath: e.path,
+            id: meta.bates_name || e.path,
+            metaPath: e.path.replace(/^\//, ""),
             metadata: meta || {},
             status: "ready",
           });
@@ -137,6 +140,7 @@ export function VaultProvider({ children }) {
       loadClients(),
       loadAllMetadata(),
     ]);
+
     return { clients, documents };
   }
 
