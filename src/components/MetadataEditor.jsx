@@ -1,5 +1,19 @@
+//MetadataEditor.jsx
 import React, { useState, useEffect } from "react";
 import { useVault } from "../VaultContext.jsx";
+
+const METADATA_FIELDS = [
+  { key: "document_type", label: "Document Type" },
+  { key: "document_role", label: "Document Role" },
+  { key: "date_document_written", label: "Date Document Written" },
+  { key: "author", label: "Author / Writer" },
+  { key: "audience", label: "Intended Audience" },
+  { key: "one_sentence_summary", label: "One-Sentence Summary", multiline: true },
+  { key: "brief_description", label: "Brief Description", multiline: true },
+  { key: "critical_facts", label: "Critical Facts", multiline: true },
+  { key: "tags", label: "Tags (comma separated)" }
+];
+
 
 export default function MetadataEditor({ metadata, metaPath }) {
   const { writeFileAtPath, readFileAtPath, isReady } = useVault();
@@ -7,14 +21,29 @@ export default function MetadataEditor({ metadata, metaPath }) {
   const [originalFilename, setOriginalFilename] = useState("");
 
   useEffect(() => {
-    async function load() {
+  if (!isReady || !metaPath) return;
+
+  let cancelled = false;
+
+  async function load() {
+    try {
       const raw = await readFileAtPath(metaPath);
+      if (cancelled) return;
+
       const parsed = JSON.parse(raw);
       setLocalMeta(parsed.metadata);
       setOriginalFilename(parsed.original_filename);
+    } catch (err) {
+      console.error("Failed to load metadata:", err);
     }
-    load();
-  }, [metaPath]);
+  }
+
+  load();
+
+  return () => {
+    cancelled = true;
+  };
+}, [metaPath, isReady]);
 
   if (!localMeta) return null;
 
