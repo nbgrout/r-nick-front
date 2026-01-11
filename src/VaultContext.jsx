@@ -1,8 +1,7 @@
-/**
- * VaultContext.jsx
- * Single authoritative owner of the FileSystemDirectoryHandle
- * Handles recursive scanning + JSON loading
- */
+// VaultContext.jsx
+// Single authoritative owner of the FileSystemDirectoryHandle
+// Handles recursive scanning + JSON loading
+
 import React, { createContext, useContext, useState } from "react";
 
 const VaultContext = createContext(null);
@@ -20,7 +19,6 @@ export function VaultProvider({ children }) {
 
     const handle = await window.showDirectoryPicker({ mode: "readwrite" });
     const perm = await handle.requestPermission({ mode: "readwrite" });
-
     if (perm !== "granted") {
       throw new Error("Vault permission not granted");
     }
@@ -45,6 +43,34 @@ export function VaultProvider({ children }) {
   async function readJsonFile(fileHandle) {
     const text = await readTextFile(fileHandle);
     return JSON.parse(text);
+  }
+
+  async function readFileAtPath(path) {
+    const vault = ensureVault();
+    const parts = path.split("/").filter(Boolean);
+    let dir = vault;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      dir = await dir.getDirectoryHandle(parts[i]);
+    }
+
+    const fileHandle = await dir.getFileHandle(parts.at(-1));
+    return await readTextFile(fileHandle);
+  }
+
+  async function writeFileAtPath(path, contents) {
+    const vault = ensureVault();
+    const parts = path.split("/").filter(Boolean);
+    let dir = vault;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      dir = await dir.getDirectoryHandle(parts[i], { create: true });
+    }
+
+    const fileHandle = await dir.getFileHandle(parts.at(-1), { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(contents);
+    await writable.close();
   }
 
   // -----------------------------
@@ -73,10 +99,10 @@ export function VaultProvider({ children }) {
   // -----------------------------
   async function loadClients() {
     const vault = ensureVault();
-
     try {
       const handle = await vault.getFileHandle("clients.json");
-      return await readJsonFile(handle);
+      const data = await readJsonFile(handle);
+      return Array.isArray(data.clients) ? data.clients : [];
     } catch {
       return [];
     }
@@ -85,7 +111,6 @@ export function VaultProvider({ children }) {
   async function loadAllMetadata() {
     const vault = ensureVault();
     const entries = await walkDirectory(vault);
-
     const docs = [];
 
     for (const e of entries) {
@@ -93,9 +118,9 @@ export function VaultProvider({ children }) {
         try {
           const meta = await readJsonFile(e.handle);
           docs.push({
-            id: meta.bates_name || e.path,
+            id: meta.bates_name || crypto.randomUUID(),
             metaPath: e.path,
-            metadata: meta,
+            metadata: meta || {},
             status: "ready",
           });
         } catch (err) {
@@ -107,39 +132,20 @@ export function VaultProvider({ children }) {
     return docs;
   }
 
-  async function writeFileAtPath(path, contents) {
-    const vault = ensureVault();
-    const parts = path.split("/").filter(Boolean);
-
-    let dir = vault;
-    for (let i = 0; i < parts.length - 1; i++) {
-      dir = await dir.getDirectoryHandle(parts[i], { create: true });
-    }
-
-    const fileHandle = await dir.getFileHandle(parts.at(-1), { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(contents);
-    await writable.close();
-  }
-
-  // -----------------------------
-  // Bootstrap
-  // -----------------------------
   async function loadVaultIndex() {
     const [clients, documents] = await Promise.all([
       loadClients(),
       loadAllMetadata(),
     ]);
-
     return { clients, documents };
   }
 
   const value = {
     vaultHandle,
     isReady: !!vaultHandle,
-
     chooseVault,
     loadVaultIndex,
+    readFileAtPath,
     writeFileAtPath,
   };
 

@@ -1,5 +1,4 @@
-// TableOfThings.jsx
-import React, { useState } from "react";
+import React from "react";
 
 export default function TableOfThings({ docs = [], onSelect }) {
   if (!docs.length) {
@@ -18,12 +17,13 @@ export default function TableOfThings({ docs = [], onSelect }) {
           <th>Tags</th>
         </tr>
       </thead>
-
       <tbody>
         {docs.map((doc) => {
           const meta = doc.metadata || {};
-          const totalAmount = (meta.financial_items || [])
-            .reduce((sum, f) => sum + (f.amount || 0), 0);
+          const totalAmount = (meta.financial_items || []).reduce(
+            (sum, f) => sum + (f.amount || 0),
+            0
+          );
 
           return (
             <tr
@@ -32,11 +32,11 @@ export default function TableOfThings({ docs = [], onSelect }) {
               style={{ cursor: "pointer", borderBottom: "1px solid #ddd" }}
             >
               <td>{meta.bates_name || "—"}</td>
-              <td>{meta.document_type}</td>
+              <td>{meta.document_type || "—"}</td>
               <td title={meta.brief_description}>
-                {meta.brief_description}
+                {meta.brief_description || "—"}
               </td>
-              <td>{meta.date_document_written}</td>
+              <td>{meta.date_document_written || "—"}</td>
               <td>
                 {totalAmount > 0 ? `$${totalAmount.toFixed(2)}` : "—"}
               </td>
