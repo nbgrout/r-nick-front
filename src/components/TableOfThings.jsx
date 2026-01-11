@@ -9,12 +9,11 @@ export default function TableOfThings({ docs = [], onSelect }) {
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr>
-          <th>Bates</th>
+          <th>Name</th>
+          <th>Status</th>
           <th>Type</th>
           <th>Description</th>
-          <th>Date</th>
           <th>Amount</th>
-          <th>Tags</th>
         </tr>
       </thead>
 
@@ -32,21 +31,14 @@ export default function TableOfThings({ docs = [], onSelect }) {
               onClick={() => onSelect(doc)}
               style={{ cursor: "pointer", borderBottom: "1px solid #ddd" }}
             >
-              <td>{meta.bates_name || "—"}</td>
-              <td>{meta.document_type}</td>
+              <td>{doc.name}</td>
+              <td>{doc.status}</td>
+              <td>{meta.document_type || "—"}</td>
               <td title={meta.brief_description}>
-                {meta.brief_description}
+                {meta.brief_description || "—"}
               </td>
-              <td>{meta.date_document_written}</td>
               <td>
                 {totalAmount > 0 ? `$${totalAmount.toFixed(2)}` : "—"}
-              </td>
-              <td>
-                {(meta.tags || []).map((t) => (
-                  <span key={t} style={{ marginRight: 4 }}>
-                    {t}
-                  </span>
-                ))}
               </td>
             </tr>
           );

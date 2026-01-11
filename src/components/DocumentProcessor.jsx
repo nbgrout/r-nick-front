@@ -94,12 +94,26 @@ export default function DocumentProcessor() {
     const { metadata } = await metaRes.json();
 
     const metaPath = `documents/${docId}/meta.json`;
-    await writeFileAtPath(metaPath, JSON.stringify(metadata, null, 2));
+const wrappedMeta = {
+  schema_version: 1,
+  original_filename: file.name,
+  status: "ready",
+  metadata
+};
+
+await writeFileAtPath(metaPath, JSON.stringify(wrappedMeta, null, 2));
 
     setDocsInTable((prev) =>
       prev.map((d) =>
         d.id === docId
-          ? { ...d, status: "ready", metadata, metaPath }
+          ? {
+    ...d,
+    name: file.name,
+    status: "ready",
+    metadata,
+    metaPath
+  }
+
           : d
       )
     );
