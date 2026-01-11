@@ -14,41 +14,23 @@ export default function DocumentProcessor() {
   const [docsInTable, setDocsInTable] = useState([]);
   const [fileUrl, setFileUrl] = useState(null);
 
-  const { chooseVault, isReady, writeFile, listFiles, readFile } = useVault();
+  const { chooseVault, isReady, loadVaultIndex, writeFileAtPath } = useVault();
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
   const dropRef = useRef(null);
+  const [clients, setClients] = useState([]);
 
   // -----------------------------
   // LOAD EXISTING METADATA FILES
   // -----------------------------
-  const loadVaultDocuments = async () => {
-    if (!isReady) return;
-
-    try {
-      const files = await listFiles();
-      const docs = [];
-
-      for (const file of files) {
-        if (!file.name.toLowerCase().endsWith("_meta.json")) continue;
-
-        const metaText = await readFile(file.name);
-        const metadata = JSON.parse(metaText);
-
-        docs.push({
-          id: file.name,
-          name: metadata.filename || file.name.replace(/_meta\.json$/i, ".pdf"),
-          status: "ready",
-          metaPath: file.name,
-          metadata,
-          file: null,
-        });
-      }
-
-      setDocsInTable(docs);
-    } catch (err) {
-      console.error("Failed to load vault contents:", err);
-    }
-  };
+  const loadVault = async () => {
+  try {
+    const { clients, documents } = await loadVaultIndex();
+    setClients(clients);
+    setDocsInTable(documents);
+  } catch (err) {
+    console.error("Vault load failed", err);
+  }
+};
 
   useEffect(() => {
     loadVaultDocuments();
@@ -57,14 +39,15 @@ export default function DocumentProcessor() {
   // -----------------------------
   // HANDLE VAULT SELECTION
   // -----------------------------
-  const handleChooseFolder = async () => {
-    try {
-      await chooseVault();
-      loadVaultDocuments();
-    } catch (err) {
-      alert(err.message || "Vault selection failed");
-    }
-  };
+const handleChooseFolder = async () => {
+  try {
+    await chooseVault();
+    await loadVault();
+  } catch (err) {
+    alert(err.message || "Vault selection failed");
+  }
+};
+
 
   // -----------------------------
   // HANDLE PDF UPLOAD
@@ -148,7 +131,12 @@ metaForm.append("original_filename", file.name);
       const metaFilename = file.name.replace(/\.pdf$/i, "_meta.json");
       metadata.filename = file.name;
 
-      await writeFile(metaFilename, JSON.stringify(metadata, null, 2));
+      const metaPath = `/documents/${docId}/meta.json`;
+
+await writeFileAtPath(
+  metaPath,
+  JSON.stringify(metadata, null, 2)
+);
 
       setDocsInTable((prev) =>
         prev.map((doc) =>

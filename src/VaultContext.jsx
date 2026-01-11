@@ -1,70 +1,137 @@
-
-import React, { createContext, useContext, useState } from "react";
-
 /**
  * VaultContext.jsx
  * Single authoritative owner of the FileSystemDirectoryHandle
+ * Handles recursive scanning + JSON loading
  */
+import React, { createContext, useContext, useState } from "react";
 
 const VaultContext = createContext(null);
 
 export function VaultProvider({ children }) {
   const [vaultHandle, setVaultHandle] = useState(null);
 
+  // -----------------------------
+  // Vault Selection
+  // -----------------------------
   async function chooseVault() {
     if (!window.showDirectoryPicker) {
       throw new Error("File System Access API not supported");
     }
 
-    const handle = await window.showDirectoryPicker({
-      mode: "readwrite",
-    });
-
-    if (!handle) {
-      throw new Error("Vault selection cancelled");
-    }
-
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
     const perm = await handle.requestPermission({ mode: "readwrite" });
+
     if (perm !== "granted") {
       throw new Error("Vault permission not granted");
     }
 
     setVaultHandle(handle);
+    return handle;
   }
 
   function ensureVault() {
-    if (!vaultHandle) {
-      throw new Error("Vault not selected");
-    }
+    if (!vaultHandle) throw new Error("Vault not selected");
     return vaultHandle;
   }
 
-  async function writeFile(name, contents) {
+  // -----------------------------
+  // Low-level FS helpers
+  // -----------------------------
+  async function readTextFile(fileHandle) {
+    const file = await fileHandle.getFile();
+    return await file.text();
+  }
+
+  async function readJsonFile(fileHandle) {
+    const text = await readTextFile(fileHandle);
+    return JSON.parse(text);
+  }
+
+  // -----------------------------
+  // Recursive directory walk
+  // -----------------------------
+  async function walkDirectory(dirHandle, basePath = "") {
+    const results = [];
+
+    for await (const [name, entry] of dirHandle.entries()) {
+      const path = `${basePath}/${name}`;
+
+      if (entry.kind === "file") {
+        results.push({ kind: "file", name, path, handle: entry });
+      } else if (entry.kind === "directory") {
+        results.push({ kind: "directory", name, path, handle: entry });
+        const nested = await walkDirectory(entry, path);
+        results.push(...nested);
+      }
+    }
+
+    return results;
+  }
+
+  // -----------------------------
+  // High-level loaders
+  // -----------------------------
+  async function loadClients() {
     const vault = ensureVault();
-    const fileHandle = await vault.getFileHandle(name, { create: true });
+
+    try {
+      const handle = await vault.getFileHandle("clients.json");
+      return await readJsonFile(handle);
+    } catch {
+      return [];
+    }
+  }
+
+  async function loadAllMetadata() {
+    const vault = ensureVault();
+    const entries = await walkDirectory(vault);
+
+    const docs = [];
+
+    for (const e of entries) {
+      if (e.kind === "file" && e.name === "meta.json") {
+        try {
+          const meta = await readJsonFile(e.handle);
+          docs.push({
+            id: meta.bates_name || e.path,
+            metaPath: e.path,
+            metadata: meta,
+            status: "ready",
+          });
+        } catch (err) {
+          console.warn("Failed to read meta:", e.path, err);
+        }
+      }
+    }
+
+    return docs;
+  }
+
+  async function writeFileAtPath(path, contents) {
+    const vault = ensureVault();
+    const parts = path.split("/").filter(Boolean);
+
+    let dir = vault;
+    for (let i = 0; i < parts.length - 1; i++) {
+      dir = await dir.getDirectoryHandle(parts[i], { create: true });
+    }
+
+    const fileHandle = await dir.getFileHandle(parts.at(-1), { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(contents);
     await writable.close();
   }
 
-  async function readFile(name) {
-    const vault = ensureVault();
-    const fileHandle = await vault.getFileHandle(name);
-    const file = await fileHandle.getFile();
-    return await file.text();
-  }
+  // -----------------------------
+  // Bootstrap
+  // -----------------------------
+  async function loadVaultIndex() {
+    const [clients, documents] = await Promise.all([
+      loadClients(),
+      loadAllMetadata(),
+    ]);
 
-  async function listMetadataFiles() {
-    const vault = ensureVault();
-    const files = [];
-
-    for await (const [name, entry] of vault.entries()) {
-      if (entry.kind === "file" && name.endsWith("_meta.json")) {
-        files.push(name);
-      }
-    }
-
-    return files;
+    return { clients, documents };
   }
 
   const value = {
@@ -72,11 +139,8 @@ export function VaultProvider({ children }) {
     isReady: !!vaultHandle,
 
     chooseVault,
-    ensureVault,
-
-    writeFile,
-    readFile,
-    listMetadataFiles,
+    loadVaultIndex,
+    writeFileAtPath,
   };
 
   return (
@@ -88,8 +152,6 @@ export function VaultProvider({ children }) {
 
 export function useVault() {
   const ctx = useContext(VaultContext);
-  if (!ctx) {
-    throw new Error("useVault must be used inside <VaultProvider>");
-  }
+  if (!ctx) throw new Error("useVault must be used inside VaultProvider");
   return ctx;
 }
