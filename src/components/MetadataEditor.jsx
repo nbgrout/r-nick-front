@@ -31,28 +31,68 @@ export default function MetadataEditor({ metadata, metaPath }) {
   };
 
   return (
-    <div>
-      <h3>Document Brief</h3>
+  <div style={{ padding: 12 }}>
+    <h3>Document Brief</h3>
 
-      <input
-        value={localMeta.document_type || ""}
-        onChange={(e) =>
-          setLocalMeta({ ...localMeta, document_type: e.target.value })
-        }
-        placeholder="Document type"
-      />
+    {METADATA_FIELDS.map((field) => {
+      const value = localMeta[field.key] ?? "";
 
-      <textarea
-        value={localMeta.brief_description || ""}
-        onChange={(e) =>
-          setLocalMeta({ ...localMeta, brief_description: e.target.value })
-        }
-        placeholder="Brief description"
-      />
+      return (
+        <div key={field.key} style={{ marginBottom: 12 }}>
+          <label
+            style={{
+              display: "block",
+              fontWeight: "bold",
+              marginBottom: 4
+            }}
+          >
+            {field.label}
+          </label>
 
-      <button onClick={save} disabled={!isReady}>
-        Save Metadata
-      </button>
-    </div>
-  );
+          {field.multiline ? (
+            <textarea
+              value={
+                Array.isArray(value)
+                  ? value.join("\n")
+                  : value
+              }
+              rows={field.key === "critical_facts" ? 4 : 3}
+              style={{ width: "100%" }}
+              onChange={(e) => {
+                let newValue = e.target.value;
+                if (field.key === "tags") {
+                  newValue = newValue
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter(Boolean);
+                }
+                setLocalMeta({
+                  ...localMeta,
+                  [field.key]: newValue
+                });
+              }}
+            />
+          ) : (
+            <input
+              type="text"
+              value={value}
+              style={{ width: "100%" }}
+              onChange={(e) =>
+                setLocalMeta({
+                  ...localMeta,
+                  [field.key]: e.target.value
+                })
+              }
+            />
+          )}
+        </div>
+      );
+    })}
+
+    <button onClick={save} disabled={!isReady}>
+      Save Metadata
+    </button>
+  </div>
+);
+
 }
