@@ -49,82 +49,106 @@ export default function DocumentProcessor() {
   // PDF ingestion pipeline
   // -----------------------------
   async function handleFile(file) {
-    const docId = crypto.randomUUID();
+  const docId = crypto.randomUUID();
 
-    const placeholderMeta = {
-      brief_description: "(processing)",
-      document_type: "(processing)",
-      tags: [],
-      financial_items: [],
-    };
+  const placeholderMeta = {
+    brief_description: "(processing)",
+    document_type: "(processing)",
+    tags: [],
+    financial_items: [],
+  };
 
-    const newDoc = {
-      id: docId,
-      name: file.name,
-      status: "processing",
-      metadata: placeholderMeta,
-      file,
-      metaPath: null,
-    };
-
-    setDocsInTable((prev) => [...prev, newDoc]);
-    setSelectedDoc(newDoc);
-    setFileUrl(URL.createObjectURL(file));
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const ocrRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
-      method: "POST",
-      body: formData,
-    });
-
-    const { ocr_text } = await ocrRes.json();
-    const pages = ocr_text.split(/\n\n--- Page \d+ ---\n/).filter(Boolean);
-    setOcrTextByPage(pages);
-
-    const metaForm = new FormData();
-    metaForm.append("text", ocr_text);
-    metaForm.append("original_filename", file.name);
-
-    const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-      method: "POST",
-      body: metaForm,
-    });
-
-    const { metadata } = await metaRes.json();
-
-    const metaPath = `documents/${docId}/meta.json`;
-const wrappedMeta = {
-  schema_version: 1,
-  original_filename: file.name,
-  status: "ready",
-  metadata
-};
-
-await writeFileAtPath(metaPath, JSON.stringify(wrappedMeta, null, 2));
-
-    setDocsInTable((prev) =>
-      prev.map((d) =>
-        d.id === docId
-          ? {
-    ...d,
+  const newDoc = {
+    id: docId,
     name: file.name,
+    status: "processing",
+    metadata: placeholderMeta,
+    file,
+    metaPath: null,
+  };
+
+  setDocsInTable((prev) => [...prev, newDoc]);
+  setSelectedDoc(newDoc);
+  setFileUrl(URL.createObjectURL(file));
+
+  // -----------------------------
+  // 1. Save ORIGINAL PDF to Vault
+  // -----------------------------
+  const pdfArrayBuffer = await file.arrayBuffer();
+  const pdfPath = `documents/${docId}/source.pdf`;
+  await writeFileAtPath(pdfPath, new Uint8Array(pdfArrayBuffer));
+
+  // -----------------------------
+  // 2. OCR via backend
+  // -----------------------------
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const ocrRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
+    method: "POST",
+    body: formData,
+  });
+
+  const { ocr_text } = await ocrRes.json();
+
+  // -----------------------------
+  // 3. Save OCR TEXT to Vault
+  // -----------------------------
+  const textPath = `documents/${docId}/text.txt`;
+  await writeFileAtPath(textPath, ocr_text);
+
+  // -----------------------------
+  // 4. Extract metadata
+  // -----------------------------
+  const metaForm = new FormData();
+  metaForm.append("text", ocr_text);
+  metaForm.append("original_filename", file.name);
+
+  const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
+    method: "POST",
+    body: metaForm,
+  });
+
+  const { metadata } = await metaRes.json();
+
+  // -----------------------------
+  // 5. Save metadata to Vault
+  // -----------------------------
+  const metaPath = `documents/${docId}/meta.json`;
+
+  const wrappedMeta = {
+    schema_version: 1,
+    original_filename: file.name,
     status: "ready",
     metadata,
-    metaPath
-  }
+  };
 
-          : d
-      )
-    );
+  await writeFileAtPath(metaPath, JSON.stringify(wrappedMeta, null, 2));
 
-    setSelectedDoc((prev) =>
-      prev && prev.id === docId
-        ? { ...prev, status: "ready", metadata, metaPath }
-        : prev
-    );
-  }
+  // -----------------------------
+  // 6. Update UI state
+  // -----------------------------
+  setDocsInTable((prev) =>
+    prev.map((d) =>
+      d.id === docId
+        ? {
+            ...d,
+            name: file.name,
+            status: "ready",
+            metadata,
+            metaPath,
+          }
+        : d
+    )
+  );
+
+  setSelectedDoc((prev) =>
+    prev && prev.id === docId
+      ? { ...prev, status: "ready", metadata, metaPath }
+      : prev
+  );
+}
+
 
   // -----------------------------
   // Drag / drop
