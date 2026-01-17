@@ -19,8 +19,16 @@ export function VaultProvider({ children }) {
       throw new Error("File System Access API not supported");
     }
 
-    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
-    const perm = await handle.requestPermission({ mode: "readwrite" });
+const handle = await window.showDirectoryPicker();
+const perm = await handle.queryPermission({ mode: "readwrite" });
+
+if (perm !== "granted") {
+  const req = await handle.requestPermission({ mode: "readwrite" });
+  if (req !== "granted") {
+    throw new Error("Vault permission not granted");
+  }
+}
+
 
     if (perm !== "granted") {
       throw new Error("Vault permission not granted");
