@@ -3,17 +3,13 @@ import React, { useState, useEffect } from "react";
 import { useVault } from "../VaultContext.jsx";
 
 const METADATA_FIELDS = [
-  { key: "document_type", label: "Document Type" },
-  { key: "document_role", label: "Document Role" },
-  { key: "date_document_written", label: "Date Document Written" },
-  { key: "author", label: "Author / Writer" },
-  { key: "audience", label: "Intended Audience" },
-  { key: "one_sentence_summary", label: "One-Sentence Summary", multiline: true },
+  { key: "title", label: "Title" },
+  { key: "type", label: "Document Type" },
   { key: "brief_description", label: "Brief Description", multiline: true },
-  { key: "critical_facts", label: "Critical Facts", multiline: true },
-  { key: "tags", label: "Tags (comma separated)" }
+  { key: "client_name", label: "Client Name" },
+  { key: "facts", label: "Facts (one per line)", multiline: true },
+  { key: "total_bill", label: "Total Bill" }
 ];
-
 
 export default function MetadataEditor({ metadata, metaPath }) {
   const { writeFileAtPath, readFileAtPath, isReady } = useVault();
@@ -88,18 +84,25 @@ export default function MetadataEditor({ metadata, metaPath }) {
               rows={field.key === "critical_facts" ? 4 : 3}
               style={{ width: "100%" }}
               onChange={(e) => {
-                let newValue = e.target.value;
-                if (field.key === "tags") {
-                  newValue = newValue
-                    .split(",")
-                    .map((t) => t.trim())
-                    .filter(Boolean);
-                }
-                setLocalMeta({
-                  ...localMeta,
-                  [field.key]: newValue
-                });
-              }}
+  let newValue = e.target.value;
+
+  if (field.key === "facts") {
+    newValue = newValue
+      .split("\n")
+      .map(f => f.trim())
+      .filter(Boolean);
+  }
+
+  if (field.key === "total_bill") {
+    newValue = newValue ? Number(newValue) : null;
+  }
+
+  setLocalMeta({
+    ...localMeta,
+    [field.key]: newValue
+  });
+}}
+
             />
           ) : (
             <input

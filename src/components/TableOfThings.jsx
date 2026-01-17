@@ -1,3 +1,4 @@
+//TableOfThings.jsx
 import React from "react";
 
 export default function TableOfThings({ docs = [], onSelect }) {
@@ -19,12 +20,8 @@ export default function TableOfThings({ docs = [], onSelect }) {
 
       <tbody>
         {docs.map((doc) => {
-          const meta = doc.metadata || {};
-          const totalAmount = (meta.financial_items || []).reduce(
-            (sum, f) => sum + (f.amount || 0),
-            0
-          );
-
+          const meta = doc.metadata || {};    
+          const totalAmount = meta.total_bill || 0;
           return (
             <tr
               key={doc.id}
