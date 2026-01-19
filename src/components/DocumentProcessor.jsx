@@ -1,8 +1,9 @@
-//DocumentProcessor.jsx
+// DocumentProcessor.jsx
 import React, { useState, useRef, useEffect } from "react";
 import PortalScene from "./PortalScene";
 import MetadataEditor from "./MetadataEditor";
 import TableOfThings from "./TableOfThings";
+import MemoEditor from "./MemoEditor";
 import logoSrc from "../assets/Logo.png";
 import { useVault } from "../VaultContext";
 import PdfViewer from "./PdfViewer";
@@ -12,7 +13,6 @@ export default function DocumentProcessor() {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
   const [ocrTextByPage, setOcrTextByPage] = useState([]);
-
   const dropRef = useRef(null);
 
   const {
@@ -21,6 +21,7 @@ export default function DocumentProcessor() {
     loadVaultIndex,
     writeFileAtPath,
     readFileAtPath,
+    resolveClientForText,
   } = useVault();
 
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
@@ -29,8 +30,8 @@ export default function DocumentProcessor() {
   // Load existing vault contents
   // -----------------------------
   async function loadVault() {
-    const { documents } = await loadVaultIndex();
-    setDocsInTable(documents);
+    const { items } = await loadVaultIndex();
+    setDocsInTable(items);
   }
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function DocumentProcessor() {
   }, [isReady]);
 
   // -----------------------------
-  // Folder selection
+  // Vault selection
   // -----------------------------
   async function handleChooseFolder() {
     await chooseVault();
@@ -46,109 +47,132 @@ export default function DocumentProcessor() {
   }
 
   // -----------------------------
+  // New Memo creation
+  // -----------------------------
+  async function createNewMemo() {
+    const memoId = crypto.randomUUID();
+    const memo = {
+      item_version: 1,
+      id: memoId,
+      item_type: "memo",
+      client_id: null,
+      status: "ready",
+      created_at: new Date().toISOString(),
+      metadata: {
+        title: "New Memo",
+        body: "",
+        tags: [],
+      },
+    };
+
+    const path = `memos/${memoId}/item.json`;
+    await writeFileAtPath(path, JSON.stringify(memo, null, 2));
+
+    // Reload vault index
+    const { items } = await loadVaultIndex();
+    setDocsInTable(items);
+
+    // Auto-select the memo
+    const created = items.find((i) => i.id === memoId);
+    if (created) setSelectedDoc(created);
+  }
+
+  // -----------------------------
   // PDF ingestion pipeline
   // -----------------------------
   async function handleFile(file) {
-  const docId = crypto.randomUUID();
+    const docId = crypto.randomUUID();
+    const placeholderMeta = {
+      brief_description: "(processing)",
+      document_type: "(processing)",
+      tags: [],
+      total_bill: 0,
+    };
 
-  const placeholderMeta = {
-    brief_description: "(processing)",
-    document_type: "(processing)",
-    tags: [],
-    financial_items: [],
-  };
+    const newDoc = {
+      id: docId,
+      name: file.name,
+      status: "processing",
+      item_type: "document",
+      metadata: placeholderMeta,
+      file,
+      metaPath: null,
+    };
 
-  const newDoc = {
-    id: docId,
-    name: file.name,
-    status: "processing",
-    metadata: placeholderMeta,
-    file,
-    metaPath: null,
-  };
+    setDocsInTable((prev) => [...prev, newDoc]);
+    setSelectedDoc(newDoc);
+    setFileUrl(URL.createObjectURL(file));
 
-  setDocsInTable((prev) => [...prev, newDoc]);
-  setSelectedDoc(newDoc);
-  setFileUrl(URL.createObjectURL(file));
+    // -----------------------------
+    // 1. Save ORIGINAL PDF to Vault
+    // -----------------------------
+    const pdfArrayBuffer = await file.arrayBuffer();
+    const pdfPath = `documents/${docId}/source.pdf`;
+    await writeFileAtPath(pdfPath, new Uint8Array(pdfArrayBuffer));
 
-  // -----------------------------
-  // 1. Save ORIGINAL PDF to Vault
-  // -----------------------------
-  const pdfArrayBuffer = await file.arrayBuffer();
-  const pdfPath = `documents/${docId}/source.pdf`;
-  await writeFileAtPath(pdfPath, new Uint8Array(pdfArrayBuffer));
+    // -----------------------------
+    // 2. OCR via backend
+    // -----------------------------
+    const formData = new FormData();
+    formData.append("file", file);
+    const ocrRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
+      method: "POST",
+      body: formData,
+    });
+    const { ocr_text } = await ocrRes.json();
+    const textPath = `documents/${docId}/text.txt`;
+    await writeFileAtPath(textPath, ocr_text);
 
-  // -----------------------------
-  // 2. OCR via backend
-  // -----------------------------
-  const formData = new FormData();
-  formData.append("file", file);
+    // -----------------------------
+    // 3. Extract metadata
+    // -----------------------------
+    const clientId = await resolveClientForText(ocr_text); // auto-detect client
+    const metaForm = new FormData();
+    metaForm.append("text", ocr_text);
+    metaForm.append("original_filename", file.name);
 
-  const ocrRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
-    method: "POST",
-    body: formData,
-  });
+    const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
+      method: "POST",
+      body: metaForm,
+    });
+    const { metadata } = await metaRes.json();
 
-  const { ocr_text } = await ocrRes.json();
+    // -----------------------------
+    // 4. Save metadata to Vault
+    // -----------------------------
+    const metaPath = `documents/${docId}/meta.json`;
+    const wrappedMeta = {
+      item_version: 1,
+      id: docId,
+      item_type: "document",
+      client_id: clientId,
+      created_at: new Date().toISOString(),
+      status: "ready",
+      source: {
+        original_filename: file.name,
+        path: pdfPath,
+      },
+      metadata,
+    };
+    await writeFileAtPath(metaPath, JSON.stringify(wrappedMeta, null, 2));
 
-  // -----------------------------
-  // 3. Save OCR TEXT to Vault
-  // -----------------------------
-  const textPath = `documents/${docId}/text.txt`;
-  await writeFileAtPath(textPath, ocr_text);
+    // -----------------------------
+    // 5. Update UI state
+    // -----------------------------
+    setDocsInTable((prev) =>
+      prev.map((d) =>
+        d.id === docId
+          ? { ...d, name: file.name, status: "ready", metadata, metaPath }
+          : d
+      )
+    );
 
-  // -----------------------------
-  // 4. Extract metadata
-  // -----------------------------
-  const metaForm = new FormData();
-  metaForm.append("text", ocr_text);
-  metaForm.append("original_filename", file.name);
-
-  const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-    method: "POST",
-    body: metaForm,
-  });
-
-  const { metadata } = await metaRes.json();
-
-  // -----------------------------
-  // 5. Save metadata to Vault
-  // -----------------------------
-  const metaPath = `documents/${docId}/meta.json`;
-
-  const wrappedMeta = {
-    schema_version: 1,
-    original_filename: file.name,
-    status: "ready",
-    metadata,
-  };
-
-  await writeFileAtPath(metaPath, JSON.stringify(wrappedMeta, null, 2));
-
-  // -----------------------------
-  // 6. Update UI state
-  // -----------------------------
-  setDocsInTable((prev) =>
-    prev.map((d) =>
-      d.id === docId
-        ? {
-            ...d,
-            name: file.name,
-            status: "ready",
-            metadata,
-            metaPath,
-          }
-        : d
-    )
-  );
-
-  setSelectedDoc((prev) =>
-    prev && prev.id === docId
-      ? { ...prev, status: "ready", metadata, metaPath }
-      : prev
-  );
-}
-
+    setSelectedDoc((prev) =>
+      prev && prev.id === docId
+        ? { ...prev, status: "ready", metadata, metaPath }
+        : prev
+    );
+  }
 
   // -----------------------------
   // Drag / drop
@@ -160,9 +184,11 @@ export default function DocumentProcessor() {
     }
   }
 
-  function handleSelectDoc(doc) {
-    setSelectedDoc(doc);
-    if (doc.file) setFileUrl(URL.createObjectURL(doc.file));
+  function handleSelectDoc(item) {
+    setSelectedDoc(item);
+    if (item.file && item.item_type === "document") {
+      setFileUrl(URL.createObjectURL(item.file));
+    }
   }
 
   return (
@@ -174,6 +200,9 @@ export default function DocumentProcessor() {
 
       <div className="container">
         <button onClick={handleChooseFolder}>Choose Vault</button>
+        <button onClick={createNewMemo} disabled={!isReady}>
+          New Memo
+        </button>
 
         <div
           className="processor-grid"
@@ -188,26 +217,32 @@ export default function DocumentProcessor() {
               }
             />
 
-            <TableOfThings
-              docs={docsInTable}
-              onSelect={handleSelectDoc}
-            />
+            <TableOfThings items={docsInTable} onSelect={handleSelectDoc} />
 
-            {selectedDoc && selectedDoc.metaPath && (
-              <MetadataEditor
-                metadata={selectedDoc.metadata}
-                metaPath={selectedDoc.metaPath}
-                key={selectedDoc.id}
-              />
+            {selectedDoc && selectedDoc.id && (
+              <>
+                {selectedDoc.item_type === "memo" ? (
+                  <MemoEditor
+                    key={selectedDoc.id}
+                    onSaved={async () => {
+                      const { items } = await loadVaultIndex();
+                      setDocsInTable(items);
+                      setSelectedDoc(null);
+                    }}
+                  />
+                ) : (
+                  <MetadataEditor
+                    metaPath={selectedDoc.metaPath}
+                    key={selectedDoc.id}
+                  />
+                )}
+              </>
             )}
           </div>
 
           <div className="ocr-preview">
             {fileUrl ? (
-              <PdfViewer
-                file={fileUrl}
-                ocrTextByPage={ocrTextByPage}
-              />
+              <PdfViewer file={fileUrl} ocrTextByPage={ocrTextByPage} />
             ) : (
               <div>Drop PDF to start.</div>
             )}

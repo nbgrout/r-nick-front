@@ -3,6 +3,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import DocumentProcessor from "./components/DocumentProcessor";
 import Contacts from "./components/Contacts";
+import MemoEditor from "./components/MemoEditor.jsx";
 
 function App() {
   return (

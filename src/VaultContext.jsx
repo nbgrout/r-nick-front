@@ -84,6 +84,26 @@ if (perm !== "granted") {
     await writable.close();
   }
 
+async function loadAllItems() {
+  const vault = ensureVault();
+  const entries = await walkDirectory(vault);
+
+  const items = [];
+
+  for (const e of entries) {
+    if (e.kind === "file" && e.name === "item.json") {
+      try {
+        const data = await readJsonFile(e.handle);
+        items.push(data);
+      } catch (err) {
+        console.warn("Failed to read item:", e.path);
+      }
+    }
+  }
+
+  return items;
+}
+
   // -----------------------------
   // Recursive directory walk
   // -----------------------------
@@ -118,39 +138,58 @@ if (perm !== "granted") {
     }
   }
 
-  async function loadAllMetadata() {
-    const vault = ensureVault();
-    const entries = await walkDirectory(vault);
+async function resolveClientForText(text) {
+  const clients = await loadClients();
 
-    const docs = [];
+  const lowered = text.toLowerCase();
 
-    for (const e of entries) {
-      if (e.kind === "file" && e.name === "meta.json") {
-        try {
-          const meta = await readJsonFile(e.handle);
-          docs.push({
-            id: meta.bates_name || e.path,
-            metaPath: e.path.replace(/^\//, ""),
-            metadata: meta || {},
-            status: "ready",
-          });
-        } catch (err) {
-          console.warn("Failed to read meta:", e.path, err);
-        }
+  for (const c of clients) {
+    if (
+      lowered.includes(c.last_name?.toLowerCase()) &&
+      lowered.includes(c.first_name?.toLowerCase())
+    ) {
+      return c.id;
+    }
+  }
+  return null;
+}
+
+async function loadVaultIndex() {
+  const [clients, items] = await Promise.all([
+    loadClients(),
+    loadAllItems(),
+  ]);
+
+  return { clients, items };
+}
+
+
+async function ensureDir(path) {
+  try {
+    await window.showDirectoryPicker({ startIn: "documents" });
+  } catch {
+    // ignore — permission already granted
+  }
+
+  const parts = path.split("/").filter(Boolean);
+  let current = vaultRoot;
+
+  for (const part of parts) {
+    let found = false;
+
+    for await (const entry of current.values()) {
+      if (entry.kind === "directory" && entry.name === part) {
+        current = entry;
+        found = true;
+        break;
       }
     }
 
-    return docs;
+    if (!found) {
+      current = await current.getDirectoryHandle(part, { create: true });
+    }
   }
-
-  async function loadVaultIndex() {
-    const [clients, documents] = await Promise.all([
-      loadClients(),
-      loadAllMetadata(),
-    ]);
-
-    return { clients, documents };
-  }
+}
 
   const value = {
     vaultHandle,
@@ -159,6 +198,7 @@ if (perm !== "granted") {
     loadVaultIndex,
     readFileAtPath,
     writeFileAtPath,
+    ensureDir
   };
 
   return (
