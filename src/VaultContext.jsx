@@ -16,30 +16,36 @@ export function VaultProvider({ children }) {
   // -----------------------------
   async function chooseVault() {
     if (!window.showDirectoryPicker) {
-      throw new Error("File System Access API not supported");
+      alert("File System Access API not supported in this browser.");
+      return null;
     }
 
-const handle = await window.showDirectoryPicker();
-const perm = await handle.queryPermission({ mode: "readwrite" });
+    try {
+      const handle = await window.showDirectoryPicker();
+      let perm = await handle.queryPermission({ mode: "readwrite" });
 
-if (perm !== "granted") {
-  const req = await handle.requestPermission({ mode: "readwrite" });
-  if (req !== "granted") {
-    throw new Error("Vault permission not granted");
-  }
-}
+      if (perm !== "granted") {
+        perm = await handle.requestPermission({ mode: "readwrite" });
+      }
 
+      if (perm !== "granted") {
+        alert("Vault permission not granted. You can retry.");
+        return null;
+      }
 
-    if (perm !== "granted") {
-      throw new Error("Vault permission not granted");
+      setVaultHandle(handle);
+      return handle;
+    } catch (err) {
+      console.warn("Vault selection cancelled or failed:", err);
+      return null;
     }
-
-    setVaultHandle(handle);
-    return handle;
   }
 
   function ensureVault() {
-    if (!vaultHandle) throw new Error("Vault not selected");
+    if (!vaultHandle) {
+      alert("Vault not selected. Please choose a vault folder first.");
+      return null;
+    }
     return vaultHandle;
   }
 
@@ -58,9 +64,11 @@ if (perm !== "granted") {
 
   async function readFileAtPath(path) {
     const vault = ensureVault();
-    const parts = path.split("/").filter(Boolean);
+    if (!vault) return null;
 
+    const parts = path.split("/").filter(Boolean);
     let dir = vault;
+
     for (let i = 0; i < parts.length - 1; i++) {
       dir = await dir.getDirectoryHandle(parts[i]);
     }
@@ -71,9 +79,11 @@ if (perm !== "granted") {
 
   async function writeFileAtPath(path, contents) {
     const vault = ensureVault();
-    const parts = path.split("/").filter(Boolean);
+    if (!vault) return null;
 
+    const parts = path.split("/").filter(Boolean);
     let dir = vault;
+
     for (let i = 0; i < parts.length - 1; i++) {
       dir = await dir.getDirectoryHandle(parts[i], { create: true });
     }
@@ -84,25 +94,26 @@ if (perm !== "granted") {
     await writable.close();
   }
 
-async function loadAllItems() {
-  const vault = ensureVault();
-  const entries = await walkDirectory(vault);
+  async function loadAllItems() {
+    const vault = ensureVault();
+    if (!vault) return [];
 
-  const items = [];
+    const entries = await walkDirectory(vault);
+    const items = [];
 
-  for (const e of entries) {
-    if (e.kind === "file" && e.name === "item.json") {
-      try {
-        const data = await readJsonFile(e.handle);
-        items.push(data);
-      } catch (err) {
-        console.warn("Failed to read item:", e.path);
+    for (const e of entries) {
+      if (e.kind === "file" && e.name === "item.json") {
+        try {
+          const data = await readJsonFile(e.handle);
+          items.push(data);
+        } catch (err) {
+          console.warn("Failed to read item:", e.path);
+        }
       }
     }
-  }
 
-  return items;
-}
+    return items;
+  }
 
   // -----------------------------
   // Recursive directory walk
@@ -129,6 +140,8 @@ async function loadAllItems() {
   // -----------------------------
   async function loadClients() {
     const vault = ensureVault();
+    if (!vault) return [];
+
     try {
       const handle = await vault.getFileHandle("clients.json");
       const data = await readJsonFile(handle);
@@ -138,58 +151,51 @@ async function loadAllItems() {
     }
   }
 
-async function resolveClientForText(text) {
-  const clients = await loadClients();
+  async function resolveClientForText(text) {
+    const clients = await loadClients();
+    const lowered = text.toLowerCase();
 
-  const lowered = text.toLowerCase();
-
-  for (const c of clients) {
-    if (
-      lowered.includes(c.last_name?.toLowerCase()) &&
-      lowered.includes(c.first_name?.toLowerCase())
-    ) {
-      return c.id;
-    }
-  }
-  return null;
-}
-
-async function loadVaultIndex() {
-  const [clients, items] = await Promise.all([
-    loadClients(),
-    loadAllItems(),
-  ]);
-
-  return { clients, items };
-}
-
-
-async function ensureDir(path) {
-  try {
-    await window.showDirectoryPicker({ startIn: "documents" });
-  } catch {
-    // ignore — permission already granted
-  }
-
-  const parts = path.split("/").filter(Boolean);
-  let current = vaultRoot;
-
-  for (const part of parts) {
-    let found = false;
-
-    for await (const entry of current.values()) {
-      if (entry.kind === "directory" && entry.name === part) {
-        current = entry;
-        found = true;
-        break;
+    for (const c of clients) {
+      if (
+        lowered.includes(c.last_name?.toLowerCase()) &&
+        lowered.includes(c.first_name?.toLowerCase())
+      ) {
+        return c.id;
       }
     }
-
-    if (!found) {
-      current = await current.getDirectoryHandle(part, { create: true });
-    }
+    return null;
   }
-}
+
+  async function loadVaultIndex() {
+    const items = await loadAllItems();
+    const clients = await loadClients();
+    return { items, clients };
+  }
+
+  async function ensureDir(path) {
+    const vault = ensureVault();
+    if (!vault) return null;
+
+    const parts = path.split("/").filter(Boolean);
+    let current = vault;
+
+    for (const part of parts) {
+      let found = false;
+
+      for await (const entry of current.values()) {
+        if (entry.kind === "directory" && entry.name === part) {
+          current = entry;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        current = await current.getDirectoryHandle(part, { create: true });
+      }
+    }
+    return current;
+  }
 
   const value = {
     vaultHandle,
@@ -198,13 +204,12 @@ async function ensureDir(path) {
     loadVaultIndex,
     readFileAtPath,
     writeFileAtPath,
-    ensureDir
+    ensureDir,
+    resolveClientForText,
   };
 
   return (
-    <VaultContext.Provider value={value}>
-      {children}
-    </VaultContext.Provider>
+    <VaultContext.Provider value={value}>{children}</VaultContext.Provider>
   );
 }
 
