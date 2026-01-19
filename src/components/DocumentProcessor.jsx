@@ -27,9 +27,10 @@ export default function DocumentProcessor() {
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
 
   // -----------------------------
-  // Load existing vault contents
+  // Load vault items safely
   // -----------------------------
   async function loadVault() {
+    if (!isReady) return;
     const { items } = await loadVaultIndex();
     setDocsInTable(items);
   }
@@ -47,9 +48,11 @@ export default function DocumentProcessor() {
   }
 
   // -----------------------------
-  // New Memo creation
+  // Create new memo
   // -----------------------------
   async function createNewMemo() {
+    if (!isReady) return;
+
     const memoId = crypto.randomUUID();
     const memo = {
       item_version: 1,
@@ -68,7 +71,7 @@ export default function DocumentProcessor() {
     const path = `memos/${memoId}/item.json`;
     await writeFileAtPath(path, JSON.stringify(memo, null, 2));
 
-    // Reload vault index
+    // Reload vault items
     const { items } = await loadVaultIndex();
     setDocsInTable(items);
 
@@ -78,10 +81,16 @@ export default function DocumentProcessor() {
   }
 
   // -----------------------------
-  // PDF ingestion pipeline
+  // Handle PDF ingestion
   // -----------------------------
   async function handleFile(file) {
+    if (!isReady) {
+      alert("Please choose a vault first.");
+      return;
+    }
+
     const docId = crypto.randomUUID();
+
     const placeholderMeta = {
       brief_description: "(processing)",
       document_type: "(processing)",
@@ -103,30 +112,27 @@ export default function DocumentProcessor() {
     setSelectedDoc(newDoc);
     setFileUrl(URL.createObjectURL(file));
 
-    // -----------------------------
-    // 1. Save ORIGINAL PDF to Vault
-    // -----------------------------
+    // 1. Save original PDF
     const pdfArrayBuffer = await file.arrayBuffer();
     const pdfPath = `documents/${docId}/source.pdf`;
     await writeFileAtPath(pdfPath, new Uint8Array(pdfArrayBuffer));
 
-    // -----------------------------
     // 2. OCR via backend
-    // -----------------------------
     const formData = new FormData();
     formData.append("file", file);
+
     const ocrRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
       method: "POST",
       body: formData,
     });
     const { ocr_text } = await ocrRes.json();
+
     const textPath = `documents/${docId}/text.txt`;
     await writeFileAtPath(textPath, ocr_text);
 
-    // -----------------------------
-    // 3. Extract metadata
-    // -----------------------------
-    const clientId = await resolveClientForText(ocr_text); // auto-detect client
+    // 3. Extract client and metadata
+    const clientId = await resolveClientForText(ocr_text);
+
     const metaForm = new FormData();
     metaForm.append("text", ocr_text);
     metaForm.append("original_filename", file.name);
@@ -137,28 +143,21 @@ export default function DocumentProcessor() {
     });
     const { metadata } = await metaRes.json();
 
-    // -----------------------------
-    // 4. Save metadata to Vault
-    // -----------------------------
+    // 4. Save metadata
     const metaPath = `documents/${docId}/meta.json`;
     const wrappedMeta = {
       item_version: 1,
       id: docId,
       item_type: "document",
       client_id: clientId,
-      created_at: new Date().toISOString(),
       status: "ready",
-      source: {
-        original_filename: file.name,
-        path: pdfPath,
-      },
+      created_at: new Date().toISOString(),
+      source: { original_filename: file.name, path: pdfPath },
       metadata,
     };
     await writeFileAtPath(metaPath, JSON.stringify(wrappedMeta, null, 2));
 
-    // -----------------------------
-    // 5. Update UI state
-    // -----------------------------
+    // 5. Update UI
     setDocsInTable((prev) =>
       prev.map((d) =>
         d.id === docId
@@ -175,7 +174,7 @@ export default function DocumentProcessor() {
   }
 
   // -----------------------------
-  // Drag / drop
+  // Drag & drop
   // -----------------------------
   function handleDrop(e) {
     e.preventDefault();
@@ -231,10 +230,7 @@ export default function DocumentProcessor() {
                     }}
                   />
                 ) : (
-                  <MetadataEditor
-                    metaPath={selectedDoc.metaPath}
-                    key={selectedDoc.id}
-                  />
+                  <MetadataEditor metaPath={selectedDoc.metaPath} key={selectedDoc.id} />
                 )}
               </>
             )}
