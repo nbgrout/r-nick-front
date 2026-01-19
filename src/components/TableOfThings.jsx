@@ -13,16 +13,15 @@ export default function TableOfThings({ items = [], onSelect }) {
           <th>Type</th>
           <th>Description</th>
           <th>Amount</th>
+          <th>Facts</th>
         </tr>
       </thead>
       <tbody>
         {items.map((item) => {
           const meta = item.metadata || {};
-          const type =
-            item.item_type === "memo"
-              ? "Memo"
-              : meta.document_type || "—";
+          const type = item.item_type === "memo" ? "Memo" : meta.document_type || "—";
           const totalAmount = meta.total_bill ?? 0;
+          const facts = Array.isArray(meta.facts) ? meta.facts : [];
 
           return (
             <tr
@@ -37,6 +36,7 @@ export default function TableOfThings({ items = [], onSelect }) {
                 {meta.brief_description || "—"}
               </td>
               <td>{totalAmount > 0 ? `$${totalAmount.toFixed(2)}` : "—"}</td>
+              <td title={facts.join("\n")}>{facts.length > 0 ? facts.join(", ") : "—"}</td>
             </tr>
           );
         })}
@@ -44,4 +44,3 @@ export default function TableOfThings({ items = [], onSelect }) {
     </table>
   );
 }
-

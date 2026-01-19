@@ -3,26 +3,23 @@ import React, { useState, useEffect } from "react";
 import { useVault } from "../VaultContext.jsx";
 
 const METADATA_FIELDS = [
-  { key: "document_type", label: "Document Type" },
+  { key: "title", label: "Title" },
+  { key: "type", label: "Type" },
   { key: "brief_description", label: "Brief Description", multiline: true },
   { key: "client_name", label: "Client Name" },
   { key: "activity_date", label: "Activity Date" },
-  { key: "total_bill", label: "Total Amount ($)" },
   { key: "facts", label: "Facts (one per line)", multiline: true },
 ];
 
-
 export default function MetadataEditor({ metaPath }) {
   const { readFileAtPath, writeFileAtPath, isReady } = useVault();
-
-  const [loaded, setLoaded] = useState(false);
-  const [originalFilename, setOriginalFilename] = useState("");
   const [metadata, setMetadata] = useState({});
   const [factsText, setFactsText] = useState("");
+  const [originalFilename, setOriginalFilename] = useState("");
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!isReady || !metaPath) return;
-
     let cancelled = false;
 
     async function load() {
@@ -31,13 +28,13 @@ export default function MetadataEditor({ metaPath }) {
         if (cancelled) return;
 
         const parsed = JSON.parse(raw);
+        setOriginalFilename(parsed.source?.original_filename || "");
+        const md = parsed.metadata || {};
+        setMetadata(md);
 
-        setOriginalFilename(parsed.original_filename || "");
-        setMetadata(parsed.metadata || {});
-
-        // IMPORTANT: convert array → editable text
-        if (Array.isArray(parsed.metadata?.facts)) {
-          setFactsText(parsed.metadata.facts.join("\n"));
+        // Convert facts array → text
+        if (Array.isArray(md.facts)) {
+          setFactsText(md.facts.join("\n"));
         } else {
           setFactsText("");
         }
@@ -52,12 +49,10 @@ export default function MetadataEditor({ metaPath }) {
     return () => (cancelled = true);
   }, [metaPath, isReady]);
 
-  if (!loaded) return null;
-
   const save = async () => {
     const cleanedFacts = factsText
       .split("\n")
-      .map(f => f.trim())
+      .map((f) => f.trim())
       .filter(Boolean);
 
     const wrapped = {
@@ -74,38 +69,12 @@ export default function MetadataEditor({ metaPath }) {
     alert("Saved");
   };
 
+  if (!loaded) return <div>Loading metadata...</div>;
+
   return (
     <div style={{ padding: 12 }}>
       <h3>Document Brief</h3>
-
-      {METADATA_FIELDS.map(field => {
-        if (field.key === "total_bill") {
-  const value = metadata.total_bill ?? "";
-
-  return (
-    <div key="total_bill" style={{ marginBottom: 12 }}>
-      <label style={{ fontWeight: "bold", display: "block" }}>
-        {field.label}
-      </label>
-      <input
-        type="number"
-        step="0.01"
-        style={{ width: "100%" }}
-        value={value}
-        onChange={e =>
-          setMetadata({
-            ...metadata,
-            total_bill:
-              e.target.value === ""
-                ? 0
-                : Number(e.target.value),
-          })
-        }
-      />
-    </div>
-  );
-}
-
+      {METADATA_FIELDS.map((field) => {
         if (field.key === "facts") {
           return (
             <div key="facts" style={{ marginBottom: 12 }}>
@@ -116,7 +85,7 @@ export default function MetadataEditor({ metaPath }) {
                 rows={6}
                 style={{ width: "100%" }}
                 value={factsText}
-                onChange={e => setFactsText(e.target.value)}
+                onChange={(e) => setFactsText(e.target.value)}
               />
             </div>
           );
@@ -135,7 +104,7 @@ export default function MetadataEditor({ metaPath }) {
                 rows={3}
                 style={{ width: "100%" }}
                 value={value}
-                onChange={e =>
+                onChange={(e) =>
                   setMetadata({ ...metadata, [field.key]: e.target.value })
                 }
               />
@@ -144,7 +113,7 @@ export default function MetadataEditor({ metaPath }) {
                 type="text"
                 style={{ width: "100%" }}
                 value={value}
-                onChange={e =>
+                onChange={(e) =>
                   setMetadata({ ...metadata, [field.key]: e.target.value })
                 }
               />
@@ -152,7 +121,6 @@ export default function MetadataEditor({ metaPath }) {
           </div>
         );
       })}
-
       <button onClick={save} disabled={!isReady}>
         Save Metadata
       </button>

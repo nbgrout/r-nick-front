@@ -29,11 +29,25 @@ export default function DocumentProcessor() {
   // -----------------------------
   // Load vault items safely
   // -----------------------------
-  async function loadVault() {
-    if (!isReady) return;
-    const { items } = await loadVaultIndex();
-    setDocsInTable(items);
-  }
+async function loadVault() {
+  const vaultData = await loadVaultIndex();
+  if (!vaultData) return;
+
+  const { items } = vaultData;
+
+  // Map items to include required fields for TableOfThings
+  const mappedItems = items.map((item) => ({
+    id: item.id,
+    name: item.metadata?.title || item.id,
+    status: item.status || "ready",
+    metadata: item.metadata || {},
+    metaPath: item.item_type === "memo" ? null : `documents/${item.id}/meta.json`,
+    item_type: item.item_type,
+  }));
+
+  setDocsInTable(mappedItems);
+}
+
 
   useEffect(() => {
     if (isReady) loadVault();
