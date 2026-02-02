@@ -32,9 +32,7 @@ export default function TableOfThings({ items = [], onSelect }) {
               <td>{meta.title || item.name}</td>
               <td>{item.status || "ready"}</td>
               <td>{type}</td>
-              <td title={meta.brief_description || ""}>
-                {meta.brief_description || "—"}
-              </td>
+              <td title={meta.brief_description || ""}>{meta.brief_description || "—"}</td>
               <td>{totalAmount > 0 ? `$${totalAmount.toFixed(2)}` : "—"}</td>
               <td title={facts.join("\n")}>{facts.length > 0 ? facts.join(", ") : "—"}</td>
             </tr>
@@ -44,3 +42,4 @@ export default function TableOfThings({ items = [], onSelect }) {
     </table>
   );
 }
+

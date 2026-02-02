@@ -26,44 +26,40 @@ export default function DocumentProcessor() {
 
   const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "";
 
-  // -----------------------------
-  // Load vault items safely
-  // -----------------------------
-async function loadVault() {
-  const vaultData = await loadVaultIndex();
-  if (!vaultData) return;
+  // Load vault items
+  async function loadVault() {
+    if (!isReady) return;
 
-  const { items } = vaultData;
+    try {
+      const { items } = await loadVaultIndex();
 
-  // Map items to include required fields for TableOfThings
-  const mappedItems = items.map((item) => ({
-    id: item.id,
-    name: item.metadata?.title || item.id,
-    status: item.status || "ready",
-    metadata: item.metadata || {},
-    metaPath: item.item_type === "memo" ? null : `documents/${item.id}/meta.json`,
-    item_type: item.item_type,
-  }));
+      const mappedItems = items.map((item) => ({
+        id: item.id,
+        name: item.metadata?.title || item.id,
+        status: item.status || "ready",
+        metadata: item.metadata || {},
+        metaPath: item.item_type === "document" ? `documents/${item.id}/meta.json` : null,
+        item_type: item.item_type,
+        file: null, // existing files not loaded yet
+      }));
 
-  setDocsInTable(mappedItems);
-}
-
+      setDocsInTable(mappedItems);
+    } catch (err) {
+      console.error("Failed to load vault:", err);
+    }
+  }
 
   useEffect(() => {
     if (isReady) loadVault();
   }, [isReady]);
 
-  // -----------------------------
   // Vault selection
-  // -----------------------------
   async function handleChooseFolder() {
     await chooseVault();
     await loadVault();
   }
 
-  // -----------------------------
   // Create new memo
-  // -----------------------------
   async function createNewMemo() {
     if (!isReady) return;
 
@@ -85,18 +81,13 @@ async function loadVault() {
     const path = `memos/${memoId}/item.json`;
     await writeFileAtPath(path, JSON.stringify(memo, null, 2));
 
-    // Reload vault items
-    const { items } = await loadVaultIndex();
-    setDocsInTable(items);
+    await loadVault();
 
-    // Auto-select the memo
-    const created = items.find((i) => i.id === memoId);
+    const created = docsInTable.find((i) => i.id === memoId);
     if (created) setSelectedDoc(created);
   }
 
-  // -----------------------------
   // Handle PDF ingestion
-  // -----------------------------
   async function handleFile(file) {
     if (!isReady) {
       alert("Please choose a vault first.");
@@ -110,6 +101,7 @@ async function loadVault() {
       document_type: "(processing)",
       tags: [],
       total_bill: 0,
+      facts: [],
     };
 
     const newDoc = {
@@ -126,36 +118,30 @@ async function loadVault() {
     setSelectedDoc(newDoc);
     setFileUrl(URL.createObjectURL(file));
 
-    // 1. Save original PDF
+    // 1. Save PDF
     const pdfArrayBuffer = await file.arrayBuffer();
     const pdfPath = `documents/${docId}/source.pdf`;
     await writeFileAtPath(pdfPath, new Uint8Array(pdfArrayBuffer));
 
-    // 2. OCR via backend
+    // 2. OCR
     const formData = new FormData();
     formData.append("file", file);
-
-    const ocrRes = await fetch(`${BACKEND_URL}/upload-pdf/`, {
-      method: "POST",
-      body: formData,
-    });
+    const ocrRes = await fetch(`${BACKEND_URL}/upload-pdf/`, { method: "POST", body: formData });
     const { ocr_text } = await ocrRes.json();
 
     const textPath = `documents/${docId}/text.txt`;
     await writeFileAtPath(textPath, ocr_text);
 
-    // 3. Extract client and metadata
+    // 3. Extract metadata
     const clientId = await resolveClientForText(ocr_text);
-
     const metaForm = new FormData();
     metaForm.append("text", ocr_text);
     metaForm.append("original_filename", file.name);
-
-    const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, {
-      method: "POST",
-      body: metaForm,
-    });
+    const metaRes = await fetch(`${BACKEND_URL}/extract-meta/`, { method: "POST", body: metaForm });
     const { metadata } = await metaRes.json();
+
+    // Ensure facts is array
+    if (!Array.isArray(metadata.facts)) metadata.facts = [];
 
     // 4. Save metadata
     const metaPath = `documents/${docId}/meta.json`;
@@ -173,34 +159,26 @@ async function loadVault() {
 
     // 5. Update UI
     setDocsInTable((prev) =>
-      prev.map((d) =>
-        d.id === docId
-          ? { ...d, name: file.name, status: "ready", metadata, metaPath }
-          : d
-      )
+      prev.map((d) => (d.id === docId ? { ...d, status: "ready", metadata, metaPath } : d))
     );
 
     setSelectedDoc((prev) =>
-      prev && prev.id === docId
-        ? { ...prev, status: "ready", metadata, metaPath }
-        : prev
+      prev && prev.id === docId ? { ...prev, status: "ready", metadata, metaPath } : prev
     );
   }
 
-  // -----------------------------
   // Drag & drop
-  // -----------------------------
   function handleDrop(e) {
     e.preventDefault();
-    if (e.dataTransfer.files.length) {
-      handleFile(e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
   }
 
   function handleSelectDoc(item) {
     setSelectedDoc(item);
     if (item.file && item.item_type === "document") {
       setFileUrl(URL.createObjectURL(item.file));
+    } else {
+      setFileUrl(null);
     }
   }
 
@@ -217,19 +195,9 @@ async function loadVault() {
           New Memo
         </button>
 
-        <div
-          className="processor-grid"
-          ref={dropRef}
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-        >
+        <div className="processor-grid" ref={dropRef} onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
           <div className="left-stack">
-            <PortalScene
-              onChooseFile={() =>
-                document.getElementById("fileInput").click()
-              }
-            />
-
+            <PortalScene onChooseFile={() => document.getElementById("fileInput").click()} />
             <TableOfThings items={docsInTable} onSelect={handleSelectDoc} />
 
             {selectedDoc && selectedDoc.id && (
@@ -238,8 +206,7 @@ async function loadVault() {
                   <MemoEditor
                     key={selectedDoc.id}
                     onSaved={async () => {
-                      const { items } = await loadVaultIndex();
-                      setDocsInTable(items);
+                      await loadVault();
                       setSelectedDoc(null);
                     }}
                   />
@@ -251,11 +218,7 @@ async function loadVault() {
           </div>
 
           <div className="ocr-preview">
-            {fileUrl ? (
-              <PdfViewer file={fileUrl} ocrTextByPage={ocrTextByPage} />
-            ) : (
-              <div>Drop PDF to start.</div>
-            )}
+            {fileUrl ? <PdfViewer file={fileUrl} ocrTextByPage={ocrTextByPage} /> : <div>Drop PDF to start.</div>}
           </div>
         </div>
 
@@ -264,9 +227,7 @@ async function loadVault() {
           type="file"
           accept="application/pdf"
           style={{ display: "none" }}
-          onChange={(e) =>
-            e.target.files.length && handleFile(e.target.files[0])
-          }
+          onChange={(e) => e.target.files.length && handleFile(e.target.files[0])}
         />
       </div>
     </>

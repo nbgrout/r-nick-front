@@ -4,7 +4,7 @@ import { useVault } from "../VaultContext.jsx";
 
 const METADATA_FIELDS = [
   { key: "title", label: "Title" },
-  { key: "type", label: "Type" },
+  { key: "document_type", label: "Type" },
   { key: "brief_description", label: "Brief Description", multiline: true },
   { key: "client_name", label: "Client Name" },
   { key: "activity_date", label: "Activity Date" },
@@ -32,7 +32,7 @@ export default function MetadataEditor({ metaPath }) {
         const md = parsed.metadata || {};
         setMetadata(md);
 
-        // Convert facts array → text
+        // Ensure facts is an array
         if (Array.isArray(md.facts)) {
           setFactsText(md.facts.join("\n"));
         } else {
@@ -78,9 +78,7 @@ export default function MetadataEditor({ metaPath }) {
         if (field.key === "facts") {
           return (
             <div key="facts" style={{ marginBottom: 12 }}>
-              <label style={{ fontWeight: "bold", display: "block" }}>
-                {field.label}
-              </label>
+              <label style={{ fontWeight: "bold", display: "block" }}>{field.label}</label>
               <textarea
                 rows={6}
                 style={{ width: "100%" }}
@@ -95,27 +93,21 @@ export default function MetadataEditor({ metaPath }) {
 
         return (
           <div key={field.key} style={{ marginBottom: 12 }}>
-            <label style={{ fontWeight: "bold", display: "block" }}>
-              {field.label}
-            </label>
+            <label style={{ fontWeight: "bold", display: "block" }}>{field.label}</label>
 
             {field.multiline ? (
               <textarea
                 rows={3}
                 style={{ width: "100%" }}
                 value={value}
-                onChange={(e) =>
-                  setMetadata({ ...metadata, [field.key]: e.target.value })
-                }
+                onChange={(e) => setMetadata({ ...metadata, [field.key]: e.target.value })}
               />
             ) : (
               <input
                 type="text"
                 style={{ width: "100%" }}
                 value={value}
-                onChange={(e) =>
-                  setMetadata({ ...metadata, [field.key]: e.target.value })
-                }
+                onChange={(e) => setMetadata({ ...metadata, [field.key]: e.target.value })}
               />
             )}
           </div>
